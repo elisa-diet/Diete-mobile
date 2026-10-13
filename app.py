@@ -6,7 +6,6 @@
     <title>Piano Alimentare - Web App</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <!-- PDF.js per la lettura dei PDF direttamente nel browser -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -90,7 +89,6 @@
                     <span class="bg-amber-200 text-amber-900 px-2 py-0.5 rounded text-[10px] uppercase font-bold">Lista 1</span>
                 </div>
 
-                <!-- Colazione -->
                 <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
                     <div class="flex items-center gap-2 text-emerald-600 font-bold mb-2 pb-1 border-b border-gray-100">
                         <i class="fa-solid fa-mug-hot"></i> COLAZIONE
@@ -109,7 +107,6 @@
                     </ul>
                 </div>
 
-                <!-- Spuntino Mattina -->
                 <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
                     <div class="flex items-center gap-2 text-emerald-600 font-bold mb-1">
                         <i class="fa-solid fa-apple-whole"></i> SPUNTINO MATTINA
@@ -117,7 +114,6 @@
                     <p class="text-xs text-gray-700">🌰 <b>Mandorle:</b> 20g <span class="text-gray-500 text-[11px]">(Oppure noci, nocciole, anacardi, pistacchi, pinoli al naturale 20g)</span></p>
                 </div>
 
-                <!-- Pranzo -->
                 <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
                     <div class="flex items-center gap-2 text-emerald-600 font-bold mb-2 pb-1 border-b border-gray-100">
                         <i class="fa-solid fa-utensils"></i> PRANZO
@@ -130,7 +126,6 @@
                     </ul>
                 </div>
 
-                <!-- Spuntino Pomeriggio -->
                 <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
                     <div class="flex items-center gap-2 text-emerald-600 font-bold mb-1">
                         <i class="fa-solid fa-cookie-bite"></i> SPUNTINO POMERIGGIO
@@ -138,7 +133,6 @@
                     <p class="text-xs text-gray-700">🫒 <b>Olive denocciolate:</b> 100g <span class="text-gray-500 text-[11px]">(Oppure cocco fresco 60g / Avocado 100g)</span></p>
                 </div>
 
-                <!-- Cena -->
                 <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
                     <div class="flex items-center gap-2 text-emerald-600 font-bold mb-2 pb-1 border-b border-gray-100">
                         <i class="fa-solid fa-moon"></i> CENA
@@ -151,11 +145,9 @@
                     </ul>
                 </div>
 
-                <!-- Condimenti -->
                 <div class="bg-emerald-50 p-3.5 rounded-2xl border border-emerald-100 text-xs text-emerald-900">
                     <p class="font-bold flex items-center gap-1.5"><i class="fa-solid fa-bottle-droplet text-emerald-600"></i> CONDIMENTI GIORNALIERI</p>
                     <p class="mt-1"><b>Olio EVO:</b> 30g (circa 6 cucchiaini da tè da dividere tra pranzo e cena).</p>
-                    <p class="text-gray-600 text-[11px] mt-0.5">Aceto, limone, spezie, aglio: q.b.</p>
                 </div>
             </div>
 
@@ -262,13 +254,12 @@
             });
         }
 
-        // Funzione per leggere e convertire dinamicamente un PDF caricato
         async function loadPdf(event) {
             const file = event.target.files[0];
             if (!file) return;
 
             const statusEl = document.getElementById('pdf-loading-status');
-            statusEl.textContent = "Lettura PDF in corso...";
+            statusEl.textContent = "Lettura PDF...";
 
             try {
                 const arrayBuffer = await file.arrayBuffer();
@@ -282,32 +273,24 @@
                     fullText += pageText + "\n";
                 }
 
-                // Estrazione dati di base o generazione vista formattata dal testo estratto
-                parseAndDisplayPdfText(fullText, file.name);
-                statusEl.textContent = "PDF caricato con successo! ✅";
+                document.getElementById('app-title').textContent = file.name.replace(/\.[^/.]+$/, "");
+                const container = document.getElementById('dynamic-content');
+                container.innerHTML = `
+                    <div class="space-y-3">
+                        <div class="bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs p-3 rounded-xl font-medium">
+                            📄 <b>Contenuto estratto dal PDF:</b> ${file.name}
+                        </div>
+                        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-2">
+                            <h3 class="font-bold text-xs text-emerald-600 border-b pb-1"><f class="fa-solid fa-file-lines"></f> Testo del Piano</h3>
+                            <p class="text-xs text-gray-700 whitespace-pre-line leading-relaxed max-h-96 overflow-y-auto">${escapeHtml(fullText)}</p>
+                        </div>
+                    </div>
+                `;
+                statusEl.textContent = "PDF caricato! ✅";
             } catch (error) {
                 console.error(error);
-                statusEl.textContent = "Errore nella lettura del PDF ❌";
+                statusEl.textContent = "Errore lettura ❌";
             }
-        }
-
-        function parseAndDisplayPdfText(text, filename) {
-            // Aggiorna titolo con il nome del file PDF caricato
-            document.getElementById('app-title').textContent = filename.replace(/\.[^/.]+$/, "");
-            
-            // Crea una vista dinamica basata sul testo estratto dal PDF
-            const container = document.getElementById('dynamic-content');
-            container.innerHTML = `
-                <div class="space-y-3">
-                    <div class="bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs p-3 rounded-xl font-medium">
-                        📄 <b>Contenuto estratto dal PDF:</b> ${filename}
-                    </div>
-                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-2">
-                        <h3 class="font-bold text-xs text-emerald-600 border-b pb-1"><i class="fa-solid fa-file-lines"></i> Testo del Piano</h3>
-                        <p class="text-xs text-gray-700 whitespace-pre-line leading-relaxed max-h-96 overflow-y-auto">${escapeHtml(text)}</p>
-                    </div>
-                </div>
-            `;
         }
 
         function escapeHtml(text) {
