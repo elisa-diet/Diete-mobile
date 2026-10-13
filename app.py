@@ -1,140 +1,83 @@
-import streamlit as st
-import PyPDF2
-import re
-
-st.set_page_config(page_title="Visualizzatore Dieta VLCKD", page_icon="🥗", layout="wide", initial_sidebar_state="collapsed")
-
-st.markdown("""
-<style>
-    .stApp { background-color: #f8f9fa; color: #212529; font-family: sans-serif; }
-    .header-card { background: linear-gradient(135deg, #2e7d32, #4caf50); color: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 25px; text-align: center; }
-    .patient-info { background-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 25px; border-left: 5px solid #2e7d32; }
-    .horizontal-scroll-container { display: flex; flex-wrap: nowrap; overflow-x: auto; padding: 15px 5px; gap: 20px; -webkit-overflow-scrolling: touch; }
-    .day-card { flex: 0 0 320px; background-color: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); border-top: 5px solid #4caf50; transition: transform 0.2s; }
-    .day-card:hover { transform: translateY(-5px); }
-    .meal-title { font-weight: bold; color: #2e7d32; margin-top: 15px; margin-bottom: 5px; font-size: 0.95rem; letter-spacing: 0.5px; border-bottom: 1px dashed #ddd; padding-bottom: 3px; }
-    .food-box { background-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 20px; }
-    .allowed-list { color: #1b5e20; list-style-type: '✅ '; padding-left: 20px;}
-    .forbidden-list { color: #b71c1c; list-style-type: '❌ '; padding-left: 20px;}
-</style>
-""", unsafe_allow_html=True)
+import streamlit as st, PyPDF2, re
+st.set_page_config(page_title="Dieta Digitale", layout="wide", initial_sidebar_state="collapsed")
+st.markdown("<style>.stApp{background:#f8f9fa;color:#212529;font-family:sans-serif;}.header-card{background:linear-gradient(135deg,#2e7d32,#4caf50);color:white;padding:25px;border-radius:15px;text-align:center;margin-bottom:20px;}.patient-info{background:white;padding:20px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05);margin-bottom:20px;border-left:5px solid #2e7d32;}.horizontal-scroll-container{display:flex;flex-wrap:nowrap;overflow-x:auto;padding:10px 0;gap:15px;-webkit-overflow-scrolling:touch;}.day-card{flex:0 0 320px;background:white;border-radius:12px;padding:20px;box-shadow:0 4px 10px rgba(0,0,0,0.08);border-top:5px solid #4caf50;}.meal-title{font-weight:bold;color:#2e7d32;margin-top:12px;margin-bottom:4px;font-size:0.95rem;border-bottom:1px dashed #ddd;padding-bottom:2px;}.food-box{background:white;padding:15px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05);}</style>", unsafe_allow_html=True)
 
 def parse_diet_pdf(file):
-    pdf_reader = PyPDF2.PdfReader(file)
-    full_text = ""
-    for page in pdf_reader.pages:
-        full_text += page.extract_text() + "\n"
-    data = {}
-    paziente_match = re.search(r"Paziente:\s*([^\n*#]+)", full_text, re.IGNORECASE)
-    peso_match = re.search(r"Peso:\s*([^\n*#]+)", full_text, re.IGNORECASE)
-    bmi_match = re.search(r"BMI:\s*([^\n*#]+)", full_text, re.IGNORECASE)
-    obiettivo_match = re.search(r"Obiettivo:\s*([^\n*#]+)", full_text, re.IGNORECASE)
-    dott_match = re.search(r"(Dott\..*?)\n", full_text, re.IGNORECASE)
-    data['paziente'] = paziente_match.group(1).strip() if paziente_match else "Paziente Anonimo"
-    data['peso'] = peso_match.group(1).strip() if peso_match else "N/D"
-    data['bmi'] = bmi_match.group(1).strip() if bmi_match else "N/D"
-    data['obiettivo'] = obiettivo_match.group(1).strip() if obiettivo_match else "N/D"
-    data['medico'] = dott_match.group(1).strip() if dott_match else "Biologa Nutrizionista"
-    acqua_match = re.search(r"Acqua:\s*([^\n]+)", full_text, re.IGNORECASE)
-    controllo_match = re.search(r"Controllo:\s*([^\n]+)", full_text, re.IGNORECASE)
-    data['acqua'] = acqua_match.group(1).strip() if acqua_match else "Min 2 Litri/giorno"
-    data['controllo'] = controllo_match.group(1).strip() if controllo_match else "Tra 1 mese"
-    data['giorni'] = []
-    pattern_liste = r"(🗓\s*Giornat[e|a]:.*?)(?=🗓\s*Giornat[e|a]:|###\s*🥬|###\s*🍎|STRETTAMENTE|$)"
-    blocchi = re.findall(pattern_liste, full_text, re.DOTALL | re.IGNORECASE)
-    for blocco in blocchi:
-        linee = blocco.split('\n')
-        titolo = linee[0].replace('🗓', '').strip()
-        pasti = {}
-        pasto_corrente = None
-        contenuto_pasto = []
-        for linea in linee[1:]:
-            linea_clean = linea.strip()
-            if not linea_clean:
-                continue
-            if any(p in linea_clean.upper() for p in ["COLAZIONE", "SPUNTINO MATTINA", "PRANZO", "SPUNTINO POMERIGGIO", "CENA", "CONDIMENTI"]):
-                if pasto_corrente:
-                    pasti[pasto_corrente] = "\n".join(contenuto_pasto)
-                pasto_corrente = linea_clean
-                contenuto_pasto = []
-            elif pasto_corrente:
-                contenuto_pasto.append(linea_clean)
-        if pasto_corrente:
-            pasti[pasto_corrente] = "\n".join(contenuto_pasto)
-        data['giorni'].append({"titolo": titolo, "pasti": pasti})
-    def extract_section(allowed_pattern, avoid_pattern, text):
-        allowed = re.search(allowed_pattern, text, re.DOTALL | re.IGNORECASE)
-        avoid = re.search(avoid_pattern, text, re.DOTALL | re.IGNORECASE)
-        return (allowed.group(1).strip() if allowed else "", avoid.group(1).strip() if avoid else "")
-    v_ok, v_no = extract_section(r"✅\s*Verdure Consentite\n(.*?)(?=❌|$)", r"❌\s*Verdure da Evitare\n(.*?)(?=###|🍎|$)", full_text)
-    f_ok, f_no = extract_section(r"✅\s*Frutta Consentite.*\n(.*?)(?=❌|$)", r"❌\s*Frutta da Evitare\n(.*?)(?=STRETTAMENTE|$)", full_text)
-    data['verdure'] = {"ok": v_ok, "no": v_no}
-    data['frutta'] = {"ok": f_ok, "no": f_no}
-    integrazione = re.search(r"INTEGRAZIONE CONSIGLIATA\n(.*?)(?=###|$)", full_text, re.DOTALL | re.IGNORECASE)
-    vietati = re.search(r"STRETTAMENTE VIETATI\n([^\n]+)", full_text, re.IGNORECASE)
-    data['integrazione'] = integrazione.group(1).strip() if integrazione else ""
-    data['vietati'] = vietati.group(1).strip() if vietati else ""
-    return data
+    pdf, full_text, pages_text = PyPDF2.PdfReader(file), "", []
+    for p in pdf.pages:
+        t = p.extract_text()
+        if t: pages_text.append(t); full_text += t + "\n"
+    d, np = {}, "Paziente Rilevato"
+    sm = re.search(r"NOME\s+([a-zA-Z\s]+)\s+COGNOME\s+([a-zA-Z\s\n]+)", full_text, re.I)
+    if sm: np = f"{sm.group(1).strip()} {sm.group(2).strip().split('\n')[0].strip()}"
+    else:
+        for pt in pages_text:
+            for l in [ln.strip() for ln in pt.split('\n') if ln.strip()][:8]:
+                if not any(k in l.upper() for k in ["STUDIO","TEL","EMAIL","WEB","DOTTSA","DIETA","PIANO","BIOLOGA","MODIFICHE","PAGE"]) and len(l.split())>=2 and re.match(r"^[a-zA-Z\s]+$",l):
+                    np = l; break
+            if np != "Paziente Rilevato": break
+    d['paziente'] = np
+    td = re.search(r"((?:PIANO\s+ALIMENTARE\s+VLCKD|PIANO\s+ALIMENTARE\s+DA\s+\d+\s*Kcal|MODIFICHE\s+DIETA))", full_text, re.I)
+    d['tipo_dieta'] = td.group(1).strip() if td else "Piano Alimentare Personalizzato"
+    pm, am, bm, om, cm = re.search(r"PESO\s*(?:Kg)?\s*([\d,\.]+)",full_text,re.I), re.search(r"ALTEZZA\s*(?:cm)?\s*(\d+)",full_text,re.I), re.search(r"BMI\s*(?:Kg/m\s*\d*)?\s*([\d,\.]+)",full_text,re.I), re.search(r"OBIETTIVO:?\s*([^\n\)]+)",full_text,re.I), re.search(r"Prossimo controllo\s*([^\n]+)",full_text,re.I)
+    d['peso'], d['altezza'], d['bmi'], d['obiettivo'], d['controllo'] = f"{pm.group(1)} Kg" if pm else "N/D", f"{am.group(1)} cm" if am else "N/D", bm.group(1) if bm else "N/D", om.group(1).strip() if om else "Raggiungimento peso desiderabile", cm.group(1).strip() if cm else "Vedere PDF"
+    d['giorni'] = []
+    for pt in pages_text:
+        if "LISTA" in pt.upper():
+            nl = re.search(r"LISTA\s*(\d+)", pt, re.I)
+            if not nl: continue
+            tl = f"Lista {nl.group(1)}"
+            gm = re.search(r"([A-ZÈÒÀÙÌa-zèòàùì\s]+(?:\s*[-–]\s*[A-ZÈÒÀÙÌa-zèòàùì\s]+)+)", pt)
+            if gm and any(day in gm.group(1).upper() for day in ["LUNED","MARTED","MERCOLED","GIOVED","VENERD","SABATO","DOMENICA"]): tl += f" ({gm.group(1).strip().replace('\n',' ')})"
+            elif "SABATO" in pt.upper() and nl.group(1)=="4": tl += " (SABATO)"
+            pasti, pc, cp = {}, None, []
+            for l in pt.split('\n'):
+                lc = l.strip()
+                if not lc: continue
+                if any(p in lc.upper() for p in ["COLAZIONE","SPUNTINO","PRANZO","CENA","CONDIMENTI"]):
+                    if pc: pasti[pc] = "\n".join(cp)
+                    pc = "SPUNTINO POMERIGGIO" if lc.upper()=="SPUNTINO" and "SPUNTINO MATTINA" in pasti else "SPUNTINO MATTINA" if lc.upper()=="SPUNTINO" else lc
+                    cp = []
+                elif pc and not any(k in lc.upper() for k in ["STUDIO VIA CASSIA","TEL STUDIO","EMAIL:","DOTT.SSA","LISTA","QUESTO REGIME"]): cp.append(lc)
+            if pc: pasti[pc] = "\n".join(cp)
+            if pasti: d['giorni'].append({"titolo":tl, "pasti":pasti})
+    vo = re.search(r"VERDURE CONSENTITE:\s*([^\n\r]+(?:(?!\n[A-Z\s]+:)\n[^\n\r]+)*)", full_text, re.I)
+    vn = re.search(r"VERDURE DA EVITARE:\s*([^\n\r]+(?:(?!\n[A-Z\s]+:)\n[^\n\r]+)*)", full_text, re.I)
+    fo = re.search(r"FRUTTA CONSENTITA:\s*([^\n\r]+(?:(?!\n[A-Z\s]+:)\n[^\n\r]+)*)", full_text, re.I)
+    fn = re.search(r"FRUTTA DA EVITARE:\s*([^\n\r]+(?:(?!\n[A-Z\s]+:)\n[^\n\r]+)*)", full_text, re.I)
+    d['v_ok'], d['v_no'], d['f_ok'], d['f_no'] = vo.group(1).strip() if vo else "", vn.group(1).strip() if vn else "", fo.group(1).strip() if fo else "", fn.group(1).strip() if fn else ""
+    it = re.search(r"INTEGRAZIONE CONSIGLIATA:\s*(.*?)(?=\n[A-Z\s]{4,}:|$)", full_text, re.S|re.I)
+    d['integrazione'] = it.group(1).strip() if it else ""
+    return d
 
-st.markdown('<div class="header-card"><h1>Piano Alimentare VLCKD</h1><p>Carica il PDF per generare la dieta digitale interattiva</p></div>', unsafe_allow_html=True)
-uploaded_file = st.file_uploader("📂 Rilascia o seleziona il file PDF della dieta", type=["pdf"])
-
-if uploaded_file is not None:
+st.markdown('<div class="header-card"><h1>Piano Alimentare Digitale</h1><p>Trascina il PDF per generare la dieta del paziente</p></div>', unsafe_allow_html=True)
+file = st.file_uploader("📂 Carica il file PDF della dieta", type=["pdf"])
+if file is not None:
     try:
-        pazio = parse_diet_pdf(uploaded_file)
-        st.markdown(f"<p style='text-align:center; color:#666; font-style: italic;'>{pazio.get('medico', 'Biologa Nutrizionista')}</p>", unsafe_allow_html=True)
-        st.markdown(f"""
-        <div class="patient-info">
-            <div style="display: flex; flex-wrap: wrap; justify-content: space-between; row-gap: 10px;">
-                <div>👤 <b>Paziente:</b> {pazio['paziente']}</div>
-                <div>⚖️ <b>Peso Attuale:</b> {pazio['peso']}</div>
-                <div>📊 <b>BMI:</b> {pazio['bmi']}</div>
-                <div>🎯 <b>Obiettivo:</b> <span style="color:#2e7d32; font-weight:bold;">{pazio['obiettivo']}</span></div>
-            </div>
-            <hr style="margin: 12px 0; border:0; border-top:1px solid #eee;">
-            <div style="display: flex; flex-wrap: wrap; justify-content: space-between; font-size: 0.95rem; color: #555;">
-                <div>💧 <b>Idratazione:</b> {pazio['acqua']}</div>
-                <div>📅 <b>Prossimo Controllo:</b> {pazio['controllo']}</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.subheader("🗓️ Giorni e Liste Alimentari")
-        st.caption("Scorri lateralmente ➡️ per visualizzare tutti i giorni del piano")
-        scroll_html = '<div class="horizontal-scroll-container">'
-        for g in pazio['giorni']:
-            card_content = f'<div class="day-card"><h3>{g["titolo"]}</h3>'
-            for pasto, desc in g['pasti'].items():
-                desc_html = desc.replace('\n', '<br>').replace('- ', '• ')
-                card_content += f'<div class="meal-title">{pasto}</div><div style="font-size:0.9rem; color:#424242;">{desc_html}</div>'
-            card_content += '</div>'
-            scroll_html += card_content
-        scroll_html += '</div>'
-        st.markdown(scroll_html, unsafe_allow_html=True)
-        if pazio.get('integrazione'):
-            st.markdown("---")
-            st.subheader("💊 Integrazione Consigliata")
-            st.info(pazio['integrazione'])
-        st.markdown("---")
-        st.subheader("💡 Guida Alimenti & Tabelle di Riferimento")
-        tab1, tab2, tab3 = st.tabs(["🥬 Verdure", "🍎 Frutta", "⚠️ Alimenti Vietati"])
-        with tab1:
-            col1, col2 = st.columns(2)
-            with col1:
-                st.markdown(f'<div class="food-box"><h4 style="color:#1b5e20;">Consentite</h4><div class="allowed-list">{pazio["verdure"]["ok"].replace("- ", "").replace("\n", "<br>")}</div></div>', unsafe_allow_html=True)
-            with col2:
-                st.markdown(f'<div class="food-box"><h4 style="color:#b71c1c;">Da Evitare</h4><div class="forbidden-list">{pazio["verdure"]["no"].replace("- ", "").replace("\n", "<br>")}</div></div>', unsafe_allow_html=True)
-        with tab2:
-            col1, col2 = st.columns(2)
-            with col1:
-                st.markdown(f'<div class="food-box"><h4 style="color:#1b5e20;">Consentita (100g)</h4><div class="allowed-list">{pazio["frutta"]["ok"].replace("- ", "").replace("\n", "<br>")}</div></div>', unsafe_allow_html=True)
-            with col2:
-                st.markdown(f'<div class="food-box"><h4 style="color:#b71c1c;">Da Evitare</h4><div class="forbidden-list">{pazio["frutta"]["no"].replace("- ", "").replace("\n", "<br>")}</div></div>', unsafe_allow_html=True)
-        with tab3:
-            if pazio.get('vietati'):
-                st.error(f"🚫 **STRETTAMENTE VIETATI:** {pazio['vietati']}")
-            else:
-                st.error("🚫 **STRETTAMENTE VIETATI:** Pane, grissini, pizza, crackers, pasta, riso, cereali, farine, patate, legumi, dolci, biscotti, zuccheri, fruttosio, miele, alcolici, bibite gassate.")
-    except Exception as e:
-        st.error(f"Errore nella lettura del PDF. Verifica la struttura del testo. Dettaglio: {e}")
-else:
-    st.info("👋 In attesa del file. Trascina qui sopra il PDF della dieta per visualizzarla all'istante.")
+        p = parse_diet_pdf(file)
+        st.markdown(f"<p style='text-align:center;color:#2e7d32;font-size:1.1rem;font-weight:bold;'>Dott.ssa Elisa Vasa — Biologa Nutrizionista</p>", unsafe_allow_html=True)
+        st.markdown(f'<div class="patient-info"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;row-gap:10px;"><div>👤 <b>Paziente:</b> <span style="color:#2e7d32;">{p["paziente"]}</span></div><div>📋 <b>Tipo:</b> {p["tipo_dieta"]}</div><div>⚖️ <b>Peso:</b> {p["peso"]}</div><div>📊 <b>BMI:</b> {p["bmi"]}</div></div><hr style="margin:10px 0;border:0;border-top:1px solid #eee;"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;font-size:0.95rem;color:#555;"><div>🎯 <b>Obiettivo:</b> {p["obiettivo"]}</div><div>📅 <b>Controllo:</b> {p["controllo"]}</div></div></div>', unsafe_allow_html=True)
+        if p['giorni']:
+            st.subheader("🗓️ Menu Giornalieri")
+            scroll_html = '<div class="horizontal-scroll-container">'
+            for g in p['giorni']:
+                cc = f'<div class="day-card"><h3>{g["titolo"]}</h3>'
+                for pasto, desc in g['pasti'].items():
+                    dh = desc.replace('\n', '<br>').replace('Oppure:', '<br><strong style="color:#e65100;">Oppure:</strong>')
+                    cc += f'<div class="meal-title">{pasto}</div><div style="font-size:0.88rem;color:#333;line-height:1.4;">{dh}</div>'
+                cc += '</div>'; scroll_html += cc
+            st.markdown(scroll_html+'</div>', unsafe_allow_html=True)
+        if p['integrazione']: st.markdown("---"); st.subheader("💊 Integrazione"); st.info(p['integrazione'])
+        if p['v_ok'] or p['f_ok']:
+            st.markdown("---"); st.subheader("💡 Tabelle Guida Alimenti")
+            t1, t2 = st.tabs(["🥬 Verdure", "🍎 Frutta"])
+            with t1:
+                c1, c2 = st.columns(2)
+                c1.markdown(f'<div class="food-box"><h4 style="color:#1b5e20;">Consentite</h4><p style="font-size:0.9rem;">{p["v_ok"]}</p></div>', unsafe_allow_html=True)
+                c2.markdown(f'<div class="food-box"><h4 style="color:#b71c1c;">Da Evitare</h4><p style="font-size:0.9rem;">{p["v_no"]}</p></div>', unsafe_allow_html=True)
+            with t2:
+                c1, c2 = st.columns(2)
+                c1.markdown(f'<div class="food-box"><h4 style="color:#1b5e20;">Consentite</h4><p style="font-size:0.9rem;">{p["f_ok"]}</p></div>', unsafe_allow_html=True)
+                c2.markdown(f'<div class="food-box"><h4 style="color:#b71c1c;">Da Evitare</h4><p style="font-size:0.9rem;">{p["f_no"]}</p></div>', unsafe_allow_html=True)
+    except Exception as e: st.error(f"Errore: {e}")
+else: st.info("👋 Trascina qui il PDF della dieta per vederla all'istante.")
