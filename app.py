@@ -1,6 +1,16 @@
-import streamlit as st, PyPDF2, re
+import streamlit as st, PyPDF2, re, urllib.parse
 st.set_page_config(page_title="Dieta Digitale", layout="wide", initial_sidebar_state="collapsed")
-st.markdown("<style>.stApp{background:#f8f9fa;color:#212529;font-family:sans-serif;}.header-card{background:linear-gradient(135deg,#2e7d32,#4caf50);color:white;padding:25px;border-radius:15px;text-align:center;margin-bottom:20px;}.patient-info{background:white;padding:20px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05);margin-bottom:20px;border-left:5px solid #2e7d32;}.horizontal-scroll-container{display:flex;flex-wrap:nowrap;overflow-x:auto;padding:10px 0;gap:15px;-webkit-overflow-scrolling:touch;}.day-card{flex:0 0 320px;background:white;border-radius:12px;padding:20px;box-shadow:0 4px 10px rgba(0,0,0,0.08);border-top:5px solid #4caf50;}.meal-title{font-weight:bold;color:#2e7d32;margin-top:12px;margin-bottom:4px;font-size:0.95rem;border-bottom:1px dashed #ddd;padding-bottom:2px;}.food-box{background:white;padding:15px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05);}</style>", unsafe_allow_html=True)
+st.markdown("""
+<style>
+    .stApp {background:#f8f9fa;color:#212529;font-family:sans-serif;}
+    .header-card {background:linear-gradient(135deg,#2e7d32,#4caf50);color:white;padding:25px;border-radius:15px;text-align:center;margin-bottom:20px;box-shadow:0 4px 12px rgba(0,0,0,0.1);}
+    .patient-info {background:white;padding:20px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05);margin-bottom:20px;border-left:5px solid #2e7d32;}
+    .horizontal-scroll-container {display:flex !important;flex-direction:row !important;flex-wrap:nowrap !important;overflow-x:auto !important;padding:15px 0 !important;gap:20px !important;-webkit-overflow-scrolling:touch !important;}
+    .day-card {flex:0 0 85% !important;min-width:290px !important;max-width:330px !important;background:white !important;border-radius:12px !important;padding:20px !important;box-shadow:0 4px 10px rgba(0,0,0,0.08) !important;border-top:5px solid #4caf50 !important;display:block !important;}
+    .meal-title {font-weight:bold;color:#2e7d32;margin-top:12px;margin-bottom:4px;font-size:0.95rem;border-bottom:1px dashed #ddd;padding-bottom:2px;}
+    .food-box {background:white;padding:15px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05);}
+</style>
+""", unsafe_allow_html=True)
 
 def parse_diet_pdf(file):
     pdf, full_text, pages_text = PyPDF2.PdfReader(file), "", []
@@ -50,15 +60,29 @@ def parse_diet_pdf(file):
     d['integrazione'] = it.group(1).strip() if it else ""
     return d
 
-st.markdown('<div class="header-card"><h1>Piano Alimentare Digitale</h1><p>Trascina il PDF per generare la dieta del paziente</p></div>', unsafe_allow_html=True)
+st.markdown('<div class="header-card"><h1>Piano Alimentare Digitale</h1><p>Genera la dieta digitale e inviala direttamente al paziente</p></div>', unsafe_allow_html=True)
 file = st.file_uploader("📂 Carica il file PDF della dieta", type=["pdf"])
+
 if file is not None:
     try:
         p = parse_diet_pdf(file)
         st.markdown(f"<p style='text-align:center;color:#2e7d32;font-size:1.1rem;font-weight:bold;'>Dott.ssa Elisa Vasa — Biologa Nutrizionista</p>", unsafe_allow_html=True)
-        st.markdown(f'<div class="patient-info"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;row-gap:10px;"><div>👤 <b>Paziente:</b> <span style="color:#2e7d32;">{p["paziente"]}</span></div><div>📋 <b>Tipo:</b> {p["tipo_dieta"]}</div><div>⚖️ <b>Peso:</b> {p["peso"]}</div><div>📊 <b>BMI:</b> {p["bmi"]}</div></div><hr style="margin:10px 0;border:0;border-top:1px solid #eee;"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;font-size:0.95rem;color:#555;"><div>🎯 <b>Obiettivo:</b> {p["obiettivo"]}</div><div>📅 <b>Controllo:</b> {p["controllo"]}</div></div></div>', unsafe_allow_html=True)
+        
+        # --- FUNZIONE CONDIVISIONE WHATSAPP ---
+        st.subheader("📲 Invia al Paziente")
+        num_tel = st.text_input("Inserisci il numero di telefono del paziente (es. 3491234567):", key="whatsapp_num")
+        if num_tel:
+            messaggio = f"Ciao {p['paziente']}, ecco il link per consultare comodamente il tuo piano alimentare digitale interattivo: https://streamlit.app"
+            msg_encoded = urllib.parse.quote(messaggio)
+            wa_link = f"https://whatsapp.com{num_tel}&text={msg_encoded}"
+            st.markdown(f'<a href="{wa_link}" target="_blank"><button style="background-color:#25D366;color:white;border:none;padding:10px 20px;border-radius:8px;font-weight:bold;cursor:pointer;">💬 Invia su WhatsApp</button></a>', unsafe_allow_html=True)
+        
+        st.markdown("---")
+        st.markdown(f'<div class="patient-info"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;row-gap:10px;"><div>👤 <b>Paziente:</b> <span style="color:#2e7d32;font-weight:bold;">{p["paziente"]}</span></div><div>📋 <b>Tipo:</b> {p["tipo_dieta"]}</div><div>⚖️ <b>Peso:</b> {p["peso"]}</div><div>📊 <b>BMI:</b> {p["bmi"]}</div></div><hr style="margin:10px 0;border:0;border-top:1px solid #eee;"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;font-size:0.95rem;color:#555;"><div>🎯 <b>Obiettivo:</b> {p["obiettivo"]}</div><div>📅 <b>Controllo:</b> {p["controllo"]}</div></div></div>', unsafe_allow_html=True)
+        
         if p['giorni']:
             st.subheader("🗓️ Menu Giornalieri")
+            st.caption("Scorri lateralmente ➡️")
             scroll_html = '<div class="horizontal-scroll-container">'
             for g in p['giorni']:
                 cc = f'<div class="day-card"><h3>{g["titolo"]}</h3>'
@@ -67,6 +91,7 @@ if file is not None:
                     cc += f'<div class="meal-title">{pasto}</div><div style="font-size:0.88rem;color:#333;line-height:1.4;">{dh}</div>'
                 cc += '</div>'; scroll_html += cc
             st.markdown(scroll_html+'</div>', unsafe_allow_html=True)
+            
         if p['integrazione']: st.markdown("---"); st.subheader("💊 Integrazione"); st.info(p['integrazione'])
         if p['v_ok'] or p['f_ok']:
             st.markdown("---"); st.subheader("💡 Tabelle Guida Alimenti")
