@@ -22,9 +22,10 @@ import pdfplumber
 # ----------------------------------------------------------------------------
 # CONFIGURAZIONE
 # ----------------------------------------------------------------------------
+PARSER_VERSION = "2026-10-13b"
 DEFAULT_PROFESSIONISTA = "Dott.ssa Elisa Vasa • Biologa Nutrizionista"
 
-MEAL_KEYS = ("COLAZIONE", "SPUNTINO", "SPUNTINI", "MERENDA", "PRANZO", "CENA", "CONDIMENTI")
+MEAL_KEYS = ("COLAZIONE", "SPUNTINO", "SPUNTINI", "MERENDA", "PRANZO", "CENA", "COCCOLA", "CONDIMENTI")
 
 DAY_NAMES = {
     "lunedi": "Lunedì", "martedi": "Martedì", "mercoledi": "Mercoledì",
@@ -171,9 +172,9 @@ def is_meal_header(text):
     t = text.strip()
     if not t or len(t) > 40 or re.search(r"\d", t):
         return False
-    if t != t.upper():
+    if t != t.upper() and not t.istitle():
         return False
-    return any(t.startswith(k) for k in MEAL_KEYS)
+    return any(t.upper().startswith(k) for k in MEAL_KEYS)
 
 
 def parse_list_page(lines, page_width):
@@ -474,7 +475,12 @@ def render_list(lst, num):
         )
 
     idx_pranzo = next((i for i, s in enumerate(sections) if s["title"].startswith("PRANZO")), None)
-    n_spunt = sum(1 for s in sections if s["title"].startswith(("SPUNTINO", "SPUNTINI", "MERENDA")))
+    idx_cena = next((i for i, s in enumerate(sections) if s["title"].upper().startswith("CENA")), None)
+    n_spunt = sum(
+        1 for i, s in enumerate(sections)
+        if s["title"].upper().startswith(("SPUNTINO", "SPUNTINI", "MERENDA"))
+        and (idx_cena is None or i < idx_cena)
+    )
     day_badge = days[0].upper() if len(days) == 1 else " / ".join(DAY_ABBR.get(d, d).upper() for d in days)
 
     for i, s in enumerate(sections):
@@ -516,7 +522,13 @@ def render_list(lst, num):
             continue
 
         # Icona e titolo del pasto
-        if title.startswith(("SPUNTINO", "SPUNTINI", "MERENDA")):
+        if title.startswith("COCCOLA") or (
+            idx_cena is not None and i > idx_cena and title.startswith(("SPUNTINO", "SPUNTINI", "MERENDA"))
+        ):
+            # spuntino dopo cena: compare solo se previsto dalla lista
+            title = "COCCOLA DOPO CENA"
+            icon = "fa-cookie-bite"
+        elif title.startswith(("SPUNTINO", "SPUNTINI", "MERENDA")):
             before = idx_pranzo is None or i < idx_pranzo
             if n_spunt >= 2 and "MATTINA" not in title and "POMERIGGIO" not in title:
                 title = title + (" MATTINA" if before else " POMERIGGIO")
@@ -779,7 +791,7 @@ def main():
     )
 
     @st.cache_data(show_spinner="Leggo il PDF…")
-    def cached_parse(b: bytes):
+    def cached_parse(b: bytes, version: str):
         return parse_pdf(b)
 
     files = st.file_uploader("PDF del piano alimentare", type=["pdf"], accept_multiple_files=True)
@@ -788,7 +800,7 @@ def main():
         return
 
     raw = [f.getvalue() for f in files]
-    plan = merge_plans([cached_parse(b) for b in raw])
+    plan = merge_plans([cached_parse(b, PARSER_VERSION) for b in raw])
     sig = hashlib.md5(b"".join(raw)).hexdigest()[:8]
     meta = plan["meta"]
 
@@ -806,11 +818,29 @@ def main():
         bmi = c2.text_input("BMI", meta.get("bmi", ""), key=f"b{sig}")
         obiettivo = c3.text_input("Obiettivo", meta.get("obiettivo", ""), key=f"o{sig}")
 
+        problemi = []
+        for n, lst in sorted(plan["lists"].items()):
+            for s in lst["sections"]:
+                if not s["items"]:
+                    problemi.append(f"Lista {n} – {s['title']}: nessuna voce letta")
+                for it in s["items"]:
+                    if it["standalone"] and "LIBERO" not in it["name"].upper():
+                        problemi.append(f"Lista {n} – {s['title']}: voce senza quantità «{it['name']}»")
+        if problemi:
+            st.warning("Possibile lettura incompleta, controlla l'anteprima:\n\n" + "\n".join(f"- {p}" for p in problemi[:12]))
+
         with st.expander("Liste estratte (controllo)"):
             for n, lst in sorted(plan["lists"].items()):
                 st.markdown(f"**Lista {n}** – {', '.join(lst['days']) or 'giorni non rilevati'}")
                 for s in lst["sections"]:
-                    st.markdown(f"- {s['title']}: {len(s['items'])} voci")
+                    st.markdown(f"*{s['title']}* ({len(s['items'])} voci)")
+                    for it in s["items"]:
+                        st.text(f"  {it['name']} | {it['qty']} | oppure: {it['alt'][:60]}")
+            try:
+                import pdfplumber as _p
+                st.caption(f"pdfplumber {_p.__version__} · parser {PARSER_VERSION}")
+            except Exception:  # noqa: BLE001
+                pass
 
     opts = dict(
         professionista=prof, paziente=paziente, peso=peso, bmi=bmi, obiettivo=obiettivo,
