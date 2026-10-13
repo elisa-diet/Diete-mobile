@@ -1,11 +1,6 @@
 import streamlit as st
 import PyPDF2
 import re
-import os
-
-if not os.path.exists("requirements.txt"):
-    with open("requirements.txt", "w", encoding="utf-8") as f:
-        f.write("streamlit>=1.30.0\nPyPDF2>=3.0.0\n")
 
 st.set_page_config(page_title="Visualizzatore Dieta VLCKD", page_icon="🥗", layout="wide", initial_sidebar_state="collapsed")
 
