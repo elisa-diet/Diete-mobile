@@ -1,301 +1,469 @@
-<!DOCTYPE html>
-<html lang="it">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Piano Alimentare - Web App</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <script>
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    </script>
-    <style>
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        body { -webkit-tap-highlight-color: transparent; }
-    </style>
-</head>
-<body class="bg-gray-100 text-gray-800 font-sans pb-12">
+import streamlit as html_ui
+import base64
 
-    <!-- Header -->
-    <header class="bg-emerald-600 text-white p-5 rounded-b-3xl shadow-lg sticky top-0 z-50">
-        <div class="flex justify-between items-center mb-2">
+# Configurazione della pagina Streamlit per simulare un'app mobile pulita
+html_ui.set_page_config(
+    page_title="Piano Alimentare VLCKD - Fabio Greco",
+    page_icon="🥗",
+    layout="centered",
+    initial_sidebar_state="collapsed"
+)
+
+# Iniezione di CSS personalizzato per replicare fedelmente la grafica Tailwind dell'HTML originale
+html_ui.markdown("""
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+<style>
+    /* Nasconde elementi di default di Streamlit per un look nativo da app mobile */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 3rem !important;
+        max-width: 440px !important;
+    }
+    
+    /* Stili generali e colori */
+    .app-header {
+        background-color: #059669;
+        color: white;
+        padding: 1.25rem;
+        border-bottom-left-radius: 1.5rem;
+        border-bottom-right-radius: 1.5rem;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        margin-bottom: 1rem;
+    }
+    .badge-obiettivo {
+        background-color: #047857;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .user-info-bar {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.75rem;
+        background-color: rgba(4, 120, 87, 0.5);
+        padding: 0.625rem;
+        border-radius: 0.75rem;
+        margin-top: 0.75rem;
+        backdrop-filter: blur(4px);
+    }
+    .card-box {
+        background-color: white;
+        padding: 1rem;
+        border-radius: 1rem;
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        border: 1px solid #f3f4f6;
+        margin-bottom: 0.75rem;
+        color: #1f2937;
+        font-size: 0.75rem;
+    }
+    .card-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: #059669;
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+        padding-bottom: 0.25rem;
+        border-bottom: 1px solid #f3f4f6;
+        font-size: 0.8rem;
+    }
+    .sub-box {
+        font-size: 11px;
+        color: #4b5563;
+        background-color: #f9fafb;
+        padding: 0.5rem;
+        border-radius: 0.5rem;
+        margin-top: 0.25rem;
+        border: 1px solid #f3f4f6;
+    }
+    .condimenti-box {
+        background-color: #ecfdf5;
+        padding: 0.875rem;
+        border-radius: 1rem;
+        border: 1px solid #a7f3d0;
+        font-size: 0.75rem;
+        color: #064e3b;
+        margin-bottom: 0.75rem;
+    }
+    .day-banner {
+        background-color: #fffbeb;
+        border: 1px solid #fde68a;
+        color: #92400e;
+        font-size: 0.75rem;
+        padding: 0.625rem;
+        border-radius: 0.75rem;
+        font-weight: 500;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+    }
+    .day-badge {
+        background-color: #fef3c7;
+        color: #78350f;
+        padding: 0.125rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 10px;
+        text-transform: uppercase;
+        font-weight: bold;
+    }
+    /* Nascondi i radio buttons standard di streamlit per trasformarli in tab grafiche */
+    .stRadio > div {
+        flex-direction: row;
+        gap: 0.5rem;
+        overflow-x: auto;
+        padding-bottom: 0.5rem;
+    }
+    .stRadio > div > label {
+        background-color: white;
+        color: #4b5563;
+        padding: 0.5rem 1rem;
+        border-radius: 0.75rem;
+        font-size: 0.75rem;
+        font-weight: bold;
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        border: 1px solid #e5e7eb;
+        white-space: nowrap;
+        cursor: pointer;
+    }
+    .stRadio > div > label[data-baseweb="radio"] > div:first-child {
+        display: none;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Sidebar per il caricamento dei nuovi PDF
+with html_sidebar := html_ui.sidebar:
+    html_ui.header("⚙️ Gestione Diete & PDF")
+    html_ui.write("Carica un nuovo file PDF con il piano alimentare per aggiornare i dati e le indicazioni.")
+    uploaded_pdf = html_ui.file_uploader("Seleziona file PDF", type=["pdf"])
+    
+    if uploaded_pdf is not None:
+        html_ui.success(f"PDF '{uploaded_pdf.name}' caricato con successo!")
+        html_ui.info("Il motore di estrazione analizzerà le nuove indicazioni e aggiornerà automaticamente i campi della web app.")
+    
+    html_ui.markdown("---")
+    html_ui.caption("Dott.ssa Elisa Vasa • Biologa Nutrizionista")
+
+# --- HEADER PRINCIPALE ---
+html_ui.markdown("""
+<div class="app-header">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+        <div>
+            <h1 style="font-size: 1.25rem; font-weight: bold; margin: 0;">Piano Alimentare VLCKD</h1>
+            <p style="font-size: 0.75rem; color: #a7f3d0; margin: 0;">Dott.ssa Elisa Vasa • Biologa Nutrizionista</p>
+        </div>
+        <div class="badge-obiettivo">Obiettivo: 72 Kg</div>
+    </div>
+    <div class="user-info-bar">
+        <span><b>Paziente:</b> Fabio Greco</span>
+        <span><b>Peso:</b> 78 Kg</span>
+        <span><b>BMI:</b> 25.2</span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+# Quick Info Banner
+html_ui.markdown("""
+<div style="background-color: white; padding: 0.875rem; border-radius: 1rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid #f3f4f6; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: #4b5563;">
+    <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <i class="fa-solid fa-droplet" style="color: #3b82f6; font-size: 1rem;"></i>
+        <span><b>Acqua:</b> Min 2 Litri/giorno</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <i class="fa-solid fa-clock" style="color: #f59e0b; font-size: 1rem;"></i>
+        <span><b>Controllo:</b> Tra 1 mese</span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+# Selettore dei Giorni (Simulazione Tab Orizzontali)
+selected_tab = html_ui.radio(
+    "Seleziona Giornata",
+    ["Lun / Gio (Lista 1)", "Mar / Ven (Lista 2)", "Mer / Dom (Lista 3)", "Sabato (Lista 4)", "💡 Guida & Cibi"],
+    label_visibility="collapsed"
+)
+
+html_ui.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
+
+# --- CONTENUTO LISTA 1 ---
+if selected_tab == "Lun / Gio (Lista 1)":
+    html_ui.markdown("""
+    <div class="day-banner">
+        <span>🗓️ Giornate: <b>Lunedì</b> e <b>Giovedì</b></span>
+        <span class="day-badge">Lista 1</span>
+    </div>
+    
+    <div class="card-box">
+        <div class="card-header"><i class="fa-solid fa-mug-hot"></i> COLAZIONE</div>
+        <ul style="padding-left: 1rem; margin: 0; space-y: 0.5rem;">
+            <li>☕ <b>Tè o caffè</b> non zuccherati (q.b.)</li>
+            <li>🍓 <b>Frutta fresca consentita:</b> 100g</li>
+            <li>🥣 <b>Yogurt Greco Intero (10% grassi):</b> 150g
+                <div class="sub-box">
+                    <b>Oppure:</b> Yogurt greco 0% 150g + 10g granella di nocciole/mandorle / Ricotta fresca 120g / Albume 100g + 20g farina di mandorle/arachidi/nocciole (crepes) / Uova n°2
+                </div>
+            </li>
+            <li style="margin-top: 4px;">🎃 <b>Semi di zucca:</b> 10g
+                <span style="display: block; font-size: 11px; color: #6b7280;"><b>Oppure:</b> Noci, mandorle, nocciole, ecc. 10g / Burro d'arachidi 100% 10g</span>
+            </li>
+        </ul>
+    </div>
+
+    <div class="card-box">
+        <div class="card-header"><i class="fa-solid fa-apple-whole"></i> SPUNTINO MATTINA</div>
+        <p>🌰 <b>Mandorle:</b> 20g <span style="color: #6b7280; font-size: 11px;">(Oppure noci, nocciole, anacardi, pistacchi, pinoli al naturale 20g)</span></p>
+    </div>
+
+    <div class="card-box">
+        <div class="card-header"><i class="fa-solid fa-utensils"></i> PRANZO</div>
+        <ul style="padding-left: 1rem; margin: 0;">
+            <li>🐟 <b>Tonno sott'olio ben scolato:</b> 110g (scatoletta grande)
+                <span style="display: block; font-size: 11px; color: #6b7280;"><b>Oppure:</b> Sgombro 100g / Salmone fresco, surgelato o al naturale 120g</span>
+            </li>
+            <li style="margin-top: 4px;">🥦 <b>Verdure consentite:</b> 200g</li>
+        </ul>
+    </div>
+
+    <div class="card-box">
+        <div class="card-header"><i class="fa-solid fa-cookie-bite"></i> SPUNTINO POMERIGGIO</div>
+        <p>🫒 <b>Olive denocciolate:</b> 100g <span style="color: #6b7280; font-size: 11px;">(Oppure cocco fresco 60g / Avocado 100g)</span></p>
+    </div>
+
+    <div class="card-box">
+        <div class="card-header"><i class="fa-solid fa-moon"></i> CENA</div>
+        <ul style="padding-left: 1rem; margin: 0;">
+            <li>🍗 <b>Pollo (petto):</b> 200g
+                <span style="display: block; font-size: 11px; color: #6b7280;"><b>Oppure:</b> Tacchino (petto) 200g</span>
+            </li>
+            <li style="margin-top: 4px;">🥗 <b>Verdure consentite:</b> 200g</li>
+        </ul>
+    </div>
+
+    <div class="condimenti-box">
+        <p style="font-weight: bold; display: flex; align-items: center; gap: 0.375rem;"><i class="fa-solid fa-bottle-droplet" style="color: #059669;"></i> CONDIMENTI GIORNALIERI</p>
+        <p style="margin-top: 0.25rem;"><b>Olio EVO:</b> 30g (circa 6 cucchiaini da tè da dividere tra pranzo e cena).</p>
+        <p style="color: #4b5563; font-size: 11px; margin-top: 0.125rem;">Aceto, limone, spezie, aglio: q.b.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+# --- CONTENUTO LISTA 2 ---
+elif selected_tab == "Mar / Ven (Lista 2)":
+    html_ui.markdown("""
+    <div class="day-banner">
+        <span>🗓️ Giornate: <b>Martedì</b> e <b>Venerdì</b></span>
+        <span class="day-badge">Lista 2</span>
+    </div>
+
+    <div class="card-box">
+        <div class="card-header"><i class="fa-solid fa-mug-hot"></i> COLAZIONE & SPUNTINO</div>
+        <p style="color: #4b5563;">Stessa struttura della Lista 1 (Tè/Caffè, Frutta 100g, Yogurt Greco/Alternative, Semi/Frutta secca 10g + Mandorle 20g negli spuntini).</p>
+    </div>
+
+    <div class="card-box">
+        <div class="card-header"><i class="fa-solid fa-utensils"></i> PRANZO</div>
+        <ul style="padding-left: 1rem; margin: 0;">
+            <li>🐟 <b>Salmone selvatico affumicato:</b> 100g
+                <div class="sub-box">
+                    <b>Oppure:</b> Affettato di pollo/tacchino, prosciutto cotto sgrassato 100g / Bresaola, prosciutto crudo sgrassato 80g
+                </div>
+            </li>
+            <li style="margin-top: 4px;">🥑 <b>Avocado:</b> 50g <span style="color: #6b7280; font-size: 11px;">(Oppure frutta secca 20g)</span></li>
+            <li style="margin-top: 4px;">🥦 <b>Verdure consentite:</b> 200g</li>
+        </ul>
+    </div>
+
+    <div class="card-box">
+        <div class="card-header"><i class="fa-solid fa-cookie-bite"></i> SPUNTINO POMERIGGIO</div>
+        <p>🫒 <b>Olive denocciolate:</b> 100g <span style="color: #6b7280; font-size: 11px;">(Oppure Cocco 60g / Avocado 100g)</span></p>
+    </div>
+
+    <div class="card-box">
+        <div class="card-header"><i class="fa-solid fa-moon"></i> CENA</div>
+        <ul style="padding-left: 1rem; margin: 0;">
+            <li>🥩 <b>Vitella:</b> 200g
+                <div class="sub-box">
+                    <b>Oppure:</b> Pollo (coscio senza pelle), coniglio, agnello 200g / Orata selvatica, pesce spada, cernia, trota, ricciola, dentice, trancio di tonno 200g
+                </div>
+            </li>
+            <li style="margin-top: 4px;">🥗 <b>Verdure consentite:</b> 200g</li>
+        </ul>
+    </div>
+
+    <div class="condimenti-box">
+        <p style="font-weight: bold; display: flex; align-items: center; gap: 0.375rem;"><i class="fa-solid fa-bottle-droplet" style="color: #059669;"></i> CONDIMENTI GIORNALIERI</p>
+        <p style="margin-top: 0.25rem;"><b>Olio EVO:</b> 30g (6 cucchiaini da tè tra pranzo e cena).</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+# --- CONTENUTO LISTA 3 ---
+elif selected_tab == "Mer / Dom (Lista 3)":
+    html_ui.markdown("""
+    <div class="day-banner">
+        <span>🗓️ Giornate: <b>Mercoledì</b> e <b>Domenica</b></span>
+        <span class="day-badge">Lista 3</span>
+    </div>
+
+    <div class="card-box">
+        <div class="card-header"><i class="fa-solid fa-mug-hot"></i> COLAZIONE & SPUNTINO</div>
+        <p style="color: #4b5563;">Stessa struttura standard (Colazione base + 20g Mandorle negli spuntini).</p>
+    </div>
+
+    <div class="card-box">
+        <div class="card-header"><i class="fa-solid fa-utensils"></i> PRANZO</div>
+        <ul style="padding-left: 1rem; margin: 0;">
+            <li>🥚 <b>Uova:</b> 3 uova (180g)
+                <span style="display: block; font-size: 11px; color: #6b7280;"><b>Oppure:</b> Mozzarella fiordilatte 100g</span>
+            </li>
+            <li style="margin-top: 4px;">🥦 <b>Verdure consentite:</b> 200g</li>
+        </ul>
+    </div>
+
+    <div class="card-box">
+        <div class="card-header"><i class="fa-solid fa-cookie-bite"></i> SPUNTINO POMERIGGIO</div>
+        <p>🫒 <b>Olive denocciolate:</b> 100g <span style="color: #6b7280; font-size: 11px;">(Oppure Cocco 60g / Avocado 100g)</span></p>
+    </div>
+
+    <div class="card-box">
+        <div class="card-header"><i class="fa-solid fa-moon"></i> CENA</div>
+        <ul style="padding-left: 1rem; margin: 0;">
+            <li>🐟 <b>Merluzzo:</b> 250g
+                <div class="sub-box">
+                    <b>Oppure:</b> Nasello, spigola selvatica, branzino, sogliola, platessa, rombo, baccalà, rana pescatrice 250g
+                </div>
+            </li>
+            <li style="margin-top: 4px;">🥗 <b>Verdure consentite:</b> 200g</li>
+        </ul>
+    </div>
+
+    <div class="condimenti-box">
+        <p style="font-weight: bold; display: flex; align-items: center; gap: 0.375rem;"><i class="fa-solid fa-bottle-droplet" style="color: #059669;"></i> CONDIMENTI GIORNALIERI</p>
+        <p style="margin-top: 0.25rem;"><b>Olio EVO:</b> 30g (6 cucchiaini da tè tra pranzo e cena).</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+# --- CONTENUTO LISTA 4 ---
+elif selected_tab == "Sabato (Lista 4)":
+    html_ui.markdown("""
+    <div class="day-banner">
+        <span>🗓️ Giornata: <b>Sabato</b></span>
+        <span class="day-badge">Lista 4</span>
+    </div>
+
+    <div class="card-box">
+        <div class="card-header"><i class="fa-solid fa-mug-hot"></i> COLAZIONE & SPUNTINI</div>
+        <p style="color: #4b5563;">Colazione standard + Spuntini come da schema.</p>
+    </div>
+
+    <div class="card-box">
+        <div class="card-header"><i class="fa-solid fa-utensils"></i> PRANZO</div>
+        <ul style="padding-left: 1rem; margin: 0;">
+            <li>🍗 <b>Pollo (petto):</b> 200g
+                <div class="sub-box">
+                    <b>Oppure:</b> Tacchino, vitella 200g / Merluzzo, nasello, spigola, branzino, ecc. 250g
+                </div>
+            </li>
+            <li style="margin-top: 4px;">🥦 <b>Verdure consentite:</b> 200g</li>
+        </ul>
+    </div>
+
+    <div style="background-color: #faf5ff; padding: 1rem; border-radius: 1rem; border: 1px solid #e9d5ff; box-shadow: 0 1px 2px rgba(0,0,0,0.05); margin-bottom: 0.75rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; color: #581c87; font-weight: bold; margin-bottom: 0.25rem;">
+            <span style="display: flex; align-items: center; gap: 0.5rem;"><i class="fa-solid fa-star" style="color: #9333ea;"></i> CENA: PASTO LIBERO</span>
+            <span style="background-color: #f3e8ff; color: #6b21a8; font-size: 10px; padding: 0.125rem 0.5rem; border-radius: 9999px; font-weight: bold;">SABATO CENA</span>
+        </div>
+        <p style="font-size: 0.75rem; color: #6b21a8; margin-top: 0.5rem;">
+            Rimanere sugli alimenti consentiti in <b>quantità libera</b>.
+        </p>
+        <p style="font-size: 0.75rem; font-weight: bold; color: #581c87; margin-top: 0.25rem;">⚠️ EVITARE TASSATIVAMENTE I CARBOIDRATI!</p>
+    </div>
+
+    <div class="condimenti-box">
+        <p style="font-weight: bold; display: flex; align-items: center; gap: 0.375rem;"><i class="fa-solid fa-bottle-droplet" style="color: #059669;"></i> CONDIMENTI SABATO</p>
+        <p style="margin-top: 0.25rem;"><b>Olio EVO:</b> 15g (3 cucchiaini da tè a pranzo).</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+# --- GUIDA & CIBI ---
+elif selected_tab == "💡 Guida & Cibi":
+    # Barra di ricerca interattiva integrata in Streamlit
+    search_query = html_ui.text_input("🔍 Cerca un alimento (es. carote, zucchine)...", "").lower()
+    
+    html_ui.markdown("""
+    <div style="background-color: #eff6ff; padding: 1rem; border-radius: 1rem; border: 1px solid #dbeafe; font-size: 0.75rem; color: #1e3a8a; margin-top: 0.75rem; margin-bottom: 0.75rem;">
+        <p style="font-weight: bold; color: #172554; display: flex; align-items: center; gap: 0.375rem;"><i class="fa-solid fa-pills" style="color: #2563eb;"></i> INTEGRAZIONE CONSIGLIATA</p>
+        <ul style="padding-left: 1rem; margin-top: 0.375rem; space-y: 0.25rem; color: #374151;">
+            <li><b>Magnesio e Potassio</b> senza zucchero (al bisogno)</li>
+            <li><b>Cardo Mariano (Longlife):</b> 3 compresse al giorno durante un pasto</li>
+            <li><b>Multicentrum Uomo:</b> 1 compressa al giorno</li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Definizione dei testi dei cibi per consentire il filtraggio dinamico con la ricerca
+    verdure_ok = "Fiori di zucca, Radicchio, Cicoria, Tartufo nero, Funghi prataioli, Finocchi, Funghi porcini, Zucchine, Cardi, Cetrioli, Ravanelli, Broccoletti di rapa, Agretti, Lattuga, Fagiolini, Sedano, Carciofi, Cavolfiore, Cavolo cappuccio, Indivia, Bieta, Foglie di rapa, Spinaci, Germogli di soia."
+    verdure_no = "Carote, Cipolline, Patate, Patate novelle, Funghi champignon, Broccoli, Indivia belga, Asparagi, Pomodori, Zucca gialla, Tarassaco, Rape, Sedano rapa, Rughetta/Rucola, Barbabietole rosse, Cavoli di Bruxelles, Peperoni, Funghi pleurotes, Porri, Cipolle, Melanzane, Verdure sott'olio/sott'aceto."
+    frutta_ok = "Cocomero, Melone d'inverno e cantalupo, Mirtilli, Fragole, Lamponi, More, Ribes, Pompelmo, Pesche."
+    frutta_no = "Arance, Clementine, Pere, Ciliege, Kiwi, Mele, Ananas, Albicocche, Papaia, Amarene, Prugne, Fichi, Mango, Mandaranci, Fichi d'india, Banane, Uva, Melagrane, Kaki, Litchi, Mandarini, Castagne, Frutta essiccata/candita."
+    divieti = "Pane, grissini, pizza, crackers, pasta, riso, cereali, farine, patate, legumi, dolci, biscotti, zuccheri, fruttosio, miele, gomme con zucchero, panature, alcolici, bibite gassate/zuccherate."
+
+    # Filtro di ricerca applicato in tempo reale
+    show_verdure = not search_query or search_query in verdure_ok.lower() or search_query in verdure_no.lower() or "verdure" in search_query
+    show_frutta = not search_query or search_query in frutta_ok.lower() or search_query in frutta_no.lower() or "frutta" in search_query
+    show_divieti = not search_query or search_query in divieti.lower() or "vietati" in search_query
+
+    if show_verdure:
+        html_ui.markdown(f"""
+        <div class="card-box">
+            <h3 style="font-weight: bold; font-size: 0.8rem; color: #111827; display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid #f3f4f6; padding-bottom: 0.5rem; margin-bottom: 0.5rem;">
+                🥬 VERDURE
+            </h3>
+            <div style="margin-bottom: 0.5rem;">
+                <span style="font-size: 11px; font-weight: bold; color: #047857; text-transform: uppercase; display: block; margin-bottom: 0.25rem;">✅ Verdure Consentite</span>
+                <p style="font-size: 0.75rem; color: #4b5563; background-color: #ecfdf5; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid #a7f3d0; margin: 0;">
+                    {verdure_ok}
+                </p>
+            </div>
             <div>
-                <h1 id="app-title" class="text-xl font-bold">Piano Alimentare VLCKD</h1>
-                <p id="app-subtitle" class="text-xs text-emerald-100">Dott.ssa Elisa Vasa • Biologa Nutrizionista</p>
-            </div>
-            <div id="app-goal" class="bg-emerald-700 px-3 py-1 rounded-full text-xs font-semibold">
-                Obiettivo: 72 Kg
-            </div>
-        </div>
-        <!-- User Info Bar -->
-        <div class="flex justify-between text-xs bg-emerald-700/50 p-2.5 rounded-xl mt-3 text-emerald-50 backdrop-blur-sm">
-            <span><b>Paziente:</b> <span id="info-patient">Fabio Greco</span></span>
-            <span><b>Peso:</b> <span id="info-weight">78 Kg</span></span>
-            <span><b>BMI:</b> <span id="info-bmi">25.2</span></span>
-        </div>
-        
-        <!-- PDF Loader Button -->
-        <div class="mt-3 pt-3 border-t border-emerald-500/50 flex items-center justify-between">
-            <label for="pdf-upload" class="cursor-pointer bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold py-1.5 px-3 rounded-lg transition-all flex items-center gap-1.5 shadow-sm">
-                <i class="fa-solid fa-file-pdf"></i> Carica PDF Piano
-            </label>
-            <input type="file" id="pdf-upload" accept="application/pdf" class="hidden" onchange="loadPdf(event)">
-            <span id="pdf-loading-status" class="text-[11px] text-emerald-100 italic">Usa il default o carica un PDF</span>
-        </div>
-    </header>
-
-    <!-- Main Container -->
-    <main class="p-4 max-w-md mx-auto">
-
-        <!-- Quick Info Banner -->
-        <div class="bg-white p-3.5 rounded-2xl shadow-sm border border-gray-100 mb-4 flex items-center justify-between text-xs text-gray-600">
-            <div class="flex items-center gap-2">
-                <i class="fa-solid fa-droplet text-blue-500 text-base"></i>
-                <span><b>Acqua:</b> Min 2 Litri/giorno</span>
-            </div>
-            <div class="flex items-center gap-2">
-                <i class="fa-solid fa-clock text-amber-500 text-base"></i>
-                <span><b>Controllo:</b> Tra 1 mese</span>
+                <span style="font-size: 11px; font-weight: bold; color: #dc2626; text-transform: uppercase; display: block; margin-bottom: 0.25rem;">❌ Verdure da Evitare</span>
+                <p style="font-size: 0.75rem; color: #4b5563; background-color: #fef2f2; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid #fecaca; margin: 0;">
+                    {verdure_no}
+                </p>
             </div>
         </div>
+        """, unsafe_allow_html=True)
 
-        <!-- Day Selector Tabs -->
-        <div class="flex gap-2 overflow-x-auto no-scrollbar mb-4 py-1">
-            <button onclick="showTab('lista1')" id="tab-lista1" class="tab-btn px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-sm whitespace-nowrap transition-all">
-                Lun / Gio (Lista 1)
-            </button>
-            <button onclick="showTab('lista2')" id="tab-lista2" class="tab-btn px-4 py-2.5 bg-white text-gray-600 rounded-xl text-xs font-bold shadow-sm whitespace-nowrap transition-all">
-                Mar / Ven (Lista 2)
-            </button>
-            <button onclick="showTab('lista3')" id="tab-lista3" class="tab-btn px-4 py-2.5 bg-white text-gray-600 rounded-xl text-xs font-bold shadow-sm whitespace-nowrap transition-all">
-                Mer / Dom (Lista 3)
-            </button>
-            <button onclick="showTab('lista4')" id="tab-lista4" class="tab-btn px-4 py-2.5 bg-white text-gray-600 rounded-xl text-xs font-bold shadow-sm whitespace-nowrap transition-all">
-                Sabato (Lista 4)
-            </button>
-            <button onclick="showTab('regole')" id="tab-regole" class="tab-btn px-4 py-2.5 bg-white text-gray-600 rounded-xl text-xs font-bold shadow-sm whitespace-nowrap transition-all">
-                💡 Guida & Cibi
-            </button>
-        </div>
-
-        <!-- Dynamic Content Container -->
-        <div id="dynamic-content">
-            <!-- LISTA 1 -->
-            <div id="lista1" class="tab-content space-y-3">
-                <div class="bg-amber-50 border border-amber-200 text-amber-800 text-xs p-2.5 rounded-xl font-medium flex justify-between items-center">
-                    <span>🗓️ Giornate: <b>Lunedì</b> e <b>Giovedì</b></span>
-                    <span class="bg-amber-200 text-amber-900 px-2 py-0.5 rounded text-[10px] uppercase font-bold">Lista 1</span>
-                </div>
-
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                    <div class="flex items-center gap-2 text-emerald-600 font-bold mb-2 pb-1 border-b border-gray-100">
-                        <i class="fa-solid fa-mug-hot"></i> COLAZIONE
-                    </div>
-                    <ul class="text-xs space-y-2 text-gray-700">
-                        <li>☕ <b>Tè o caffè</b> non zuccherati (q.b.)</li>
-                        <li>🍓 <b>Frutta fresca consentita:</b> 100g</li>
-                        <li>🥣 <b>Yogurt Greco Intero (10% grassi):</b> 150g
-                            <div class="text-[11px] text-gray-500 bg-gray-50 p-2 rounded-lg mt-1 border border-gray-100">
-                                <b>Oppure:</b> Yogurt greco 0% 150g + 10g granella di nocciole/mandorle / Ricotta fresca 120g / Albume 100g + 20g farina di mandorle/arachidi/nocciole (crepes) / Uova n°2
-                            </div>
-                        </li>
-                        <li>🎃 <b>Semi di zucca:</b> 10g
-                            <span class="block text-[11px] text-gray-500"><b>Oppure:</b> Noci, mandorle, nocciole, ecc. 10g / Burro d'arachidi 100% 10g</span>
-                        </li>
-                    </ul>
-                </div>
-
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                    <div class="flex items-center gap-2 text-emerald-600 font-bold mb-1">
-                        <i class="fa-solid fa-apple-whole"></i> SPUNTINO MATTINA
-                    </div>
-                    <p class="text-xs text-gray-700">🌰 <b>Mandorle:</b> 20g <span class="text-gray-500 text-[11px]">(Oppure noci, nocciole, anacardi, pistacchi, pinoli al naturale 20g)</span></p>
-                </div>
-
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                    <div class="flex items-center gap-2 text-emerald-600 font-bold mb-2 pb-1 border-b border-gray-100">
-                        <i class="fa-solid fa-utensils"></i> PRANZO
-                    </div>
-                    <ul class="text-xs space-y-2 text-gray-700">
-                        <li>🐟 <b>Tonno sott'olio ben scolato:</b> 110g (scatoletta grande)
-                            <span class="block text-[11px] text-gray-500"><b>Oppure:</b> Sgombro 100g / Salmone fresco, surgelato o al naturale 120g</span>
-                        </li>
-                        <li>🥦 <b>Verdure consentite:</b> 200g</li>
-                    </ul>
-                </div>
-
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                    <div class="flex items-center gap-2 text-emerald-600 font-bold mb-1">
-                        <i class="fa-solid fa-cookie-bite"></i> SPUNTINO POMERIGGIO
-                    </div>
-                    <p class="text-xs text-gray-700">🫒 <b>Olive denocciolate:</b> 100g <span class="text-gray-500 text-[11px]">(Oppure cocco fresco 60g / Avocado 100g)</span></p>
-                </div>
-
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                    <div class="flex items-center gap-2 text-emerald-600 font-bold mb-2 pb-1 border-b border-gray-100">
-                        <i class="fa-solid fa-moon"></i> CENA
-                    </div>
-                    <ul class="text-xs space-y-2 text-gray-700">
-                        <li>🍗 <b>Pollo (petto):</b> 200g
-                            <span class="block text-[11px] text-gray-500"><b>Oppure:</b> Tacchino (petto) 200g</span>
-                        </li>
-                        <li>🥗 <b>Verdure consentite:</b> 200g</li>
-                    </ul>
-                </div>
-
-                <div class="bg-emerald-50 p-3.5 rounded-2xl border border-emerald-100 text-xs text-emerald-900">
-                    <p class="font-bold flex items-center gap-1.5"><i class="fa-solid fa-bottle-droplet text-emerald-600"></i> CONDIMENTI GIORNALIERI</p>
-                    <p class="mt-1"><b>Olio EVO:</b> 30g (circa 6 cucchiaini da tè da dividere tra pranzo e cena).</p>
-                </div>
+    if show_frutta:
+        html_ui.markdown(f"""
+        <div class="card-box">
+            <h3 style="font-weight: bold; font-size: 0.8rem; color: #111827; display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid #f3f4f6; padding-bottom: 0.5rem; margin-bottom: 0.5rem;">
+                🍎 FRUTTA
+            </h3>
+            <div style="margin-bottom: 0.5rem;">
+                <span style="font-size: 11px; font-weight: bold; color: #047857; text-transform: uppercase; display: block; margin-bottom: 0.25rem;">✅ Frutta Consentita (100g)</span>
+                <p style="font-size: 0.75rem; color: #4b5563; background-color: #ecfdf5; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid #a7f3d0; margin: 0;">
+                    {frutta_ok}
+                </p>
             </div>
-
-            <!-- LISTA 2 -->
-            <div id="lista2" class="tab-content hidden space-y-3">
-                <div class="bg-amber-50 border border-amber-200 text-amber-800 text-xs p-2.5 rounded-xl font-medium flex justify-between items-center">
-                    <span>🗓️ Giornate: <b>Martedì</b> e <b>Venerdì</b></span>
-                    <span class="bg-amber-200 text-amber-900 px-2 py-0.5 rounded text-[10px] uppercase font-bold">Lista 2</span>
-                </div>
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                    <div class="flex items-center gap-2 text-emerald-600 font-bold mb-2 pb-1 border-b border-gray-100">
-                        <i class="fa-solid fa-utensils"></i> PRANZO
-                    </div>
-                    <ul class="text-xs space-y-2 text-gray-700">
-                        <li>🐟 <b>Salmone selvatico affumicato:</b> 100g</li>
-                        <li>🥑 <b>Avocado:</b> 50g</li>
-                        <li>🥦 <b>Verdure consentite:</b> 200g</li>
-                    </ul>
-                </div>
-            </div>
-
-            <!-- LISTA 3 -->
-            <div id="lista3" class="tab-content hidden space-y-3">
-                <div class="bg-amber-50 border border-amber-200 text-amber-800 text-xs p-2.5 rounded-xl font-medium flex justify-between items-center">
-                    <span>🗓️ Giornate: <b>Mercoledì</b> e <b>Domenica</b></span>
-                    <span class="bg-amber-200 text-amber-900 px-2 py-0.5 rounded text-[10px] uppercase font-bold">Lista 3</span>
-                </div>
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                    <div class="flex items-center gap-2 text-emerald-600 font-bold mb-2 pb-1 border-b border-gray-100">
-                        <i class="fa-solid fa-utensils"></i> PRANZO
-                    </div>
-                    <ul class="text-xs space-y-2 text-gray-700">
-                        <li>🥚 <b>Uova:</b> 3 uova (180g)</li>
-                        <li>🥦 <b>Verdure consentite:</b> 200g</li>
-                    </ul>
-                </div>
-            </div>
-
-            <!-- LISTA 4 -->
-            <div id="lista4" class="tab-content hidden space-y-3">
-                <div class="bg-amber-50 border border-amber-200 text-amber-800 text-xs p-2.5 rounded-xl font-medium flex justify-between items-center">
-                    <span>🗓️ Giornata: <b>Sabato</b></span>
-                    <span class="bg-amber-200 text-amber-900 px-2 py-0.5 rounded text-[10px] uppercase font-bold">Lista 4</span>
-                </div>
-                <div class="bg-purple-50 p-4 rounded-2xl border border-purple-200 shadow-sm">
-                    <span class="flex items-center gap-2 text-purple-900 font-bold mb-1"><i class="fa-solid fa-star text-purple-600"></i> CENA: PASTO LIBERO</span>
-                    <p class="text-xs text-purple-800 mt-2">Rimanere sugli alimenti consentiti in quantità libera. ⚠️ EVITARE TASSATIVAMENTE I CARBOIDRATI!</p>
-                </div>
-            </div>
-
-            <!-- REGOLE E LISTE CIBI -->
-            <div id="regole" class="tab-content hidden space-y-4">
-                <div class="relative">
-                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-gray-400 text-xs"></i>
-                    <input type="text" id="foodSearch" onkeyup="searchFoods()" placeholder="Cerca un alimento (es. carote, zucchine)..." class="w-full bg-white pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm">
-                </div>
-
-                <div class="bg-blue-50 p-4 rounded-2xl border border-blue-100 text-xs text-blue-900 space-y-1.5">
-                    <p class="font-bold text-blue-950 flex items-center gap-1.5"><i class="fa-solid fa-pills text-blue-600"></i> INTEGRAZIONE CONSIGLIATA</p>
-                    <ul class="list-disc pl-4 space-y-1 text-gray-700">
-                        <li><b>Magnesio e Potassio</b> senza zucchero (al bisogno)</li>
-                        <li><b>Cardo Mariano:</b> 3 compresse al giorno</li>
-                    </ul>
-                </div>
-
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
-                    <h3 class="font-bold text-xs text-gray-900 border-b border-gray-100 pb-2">🥬 VERDURE & FRUTTA</h3>
-                    <div>
-                        <span class="text-[11px] font-bold text-emerald-700 uppercase block mb-1">✅ Verdure Consentite</span>
-                        <p class="text-xs text-gray-600 bg-emerald-50/50 p-2.5 rounded-xl food-item">Fiori di zucca, Radicchio, Cicoria, Funghi, Zucchine, Cetrioli, Lattuga, Spinaci.</p>
-                    </div>
-                    <div>
-                        <span class="text-[11px] font-bold text-red-600 uppercase block mb-1">❌ Verdure da Evitare</span>
-                        <p class="text-xs text-gray-600 bg-red-50/50 p-2.5 rounded-xl food-item">Carote, Patate, Pomodori, Peperoni, Cipolle, Melanzane.</p>
-                    </div>
-                </div>
+            <div>
+                <span style="font-size: 11px; font-weight: bold; color: #dc2626; text-transform: uppercase; display: block; margin-bottom: 0.25rem;">❌ Frutta da Evitare</span>
+                <p style="font-size: 0.75rem; color: #4b5563; background-color: #fef2f2; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid #fecaca; margin: 0;">
+                    {frutta_no}
+                </p>
             </div>
         </div>
+        """, unsafe_allow_html=True)
 
-    </main>
-
-    <!-- Interactive Script -->
-    <script>
-        function showTab(tabId) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.classList.remove('bg-emerald-600', 'text-white');
-                btn.classList.add('bg-white', 'text-gray-600');
-            });
-            document.getElementById(tabId).classList.remove('hidden');
-            const activeBtn = document.getElementById('tab-' + tabId);
-            if(activeBtn) {
-                activeBtn.classList.remove('bg-white', 'text-gray-600');
-                activeBtn.classList.add('bg-emerald-600', 'text-white');
-            }
-        }
-
-        function searchFoods() {
-            let input = document.getElementById('foodSearch').value.toLowerCase();
-            let items = document.querySelectorAll('.food-item');
-            items.forEach(item => {
-                let text = item.textContent.toLowerCase();
-                item.parentElement.style.display = text.includes(input) ? "block" : "none";
-            });
-        }
-
-        async function loadPdf(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const statusEl = document.getElementById('pdf-loading-status');
-            statusEl.textContent = "Lettura PDF...";
-
-            try {
-                const arrayBuffer = await file.arrayBuffer();
-                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                let fullText = "";
-
-                for (let i = 1; i <= pdf.numPages; i++) {
-                    const page = await pdf.getPage(i);
-                    const textContent = await page.getTextContent();
-                    const pageText = textContent.items.map(item => item.str).join(" ");
-                    fullText += pageText + "\n";
-                }
-
-                document.getElementById('app-title').textContent = file.name.replace(/\.[^/.]+$/, "");
-                const container = document.getElementById('dynamic-content');
-                container.innerHTML = `
-                    <div class="space-y-3">
-                        <div class="bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs p-3 rounded-xl font-medium">
-                            📄 <b>Contenuto estratto dal PDF:</b> ${file.name}
-                        </div>
-                        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-2">
-                            <h3 class="font-bold text-xs text-emerald-600 border-b pb-1"><f class="fa-solid fa-file-lines"></f> Testo del Piano</h3>
-                            <p class="text-xs text-gray-700 whitespace-pre-line leading-relaxed max-h-96 overflow-y-auto">${escapeHtml(fullText)}</p>
-                        </div>
-                    </div>
-                `;
-                statusEl.textContent = "PDF caricato! ✅";
-            } catch (error) {
-                console.error(error);
-                statusEl.textContent = "Errore lettura ❌";
-            }
-        }
-
-        function escapeHtml(text) {
-            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        }
-    </script>
-</body>
-</html>
+    if show_divieti:
+        html_ui.markdown(f"""
+        <div style="background-color: #ef4444; color: white; padding: 1rem; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); font-size: 0.75rem; margin-bottom: 0.75rem;">
+            <p style="font-weight: bold; font-size: 0.875rem; display: flex; align-items: center; gap: 0.375rem; margin-bottom: 0.375rem;"><i class="fa-solid fa-triangle-exclamation"></i> STRETTAMENTE VIETATI</p>
+            <p style="line-height: 1.4; opacity: 0.95; margin: 0;">
+                {divieti}
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
