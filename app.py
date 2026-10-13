@@ -23,7 +23,6 @@ import pdfplumber
 # CONFIGURAZIONE
 # ----------------------------------------------------------------------------
 DEFAULT_PROFESSIONISTA = "Dott.ssa Elisa Vasa • Biologa Nutrizionista"
-DEFAULT_PASTO_LIBERO = "Pasto a libera scelta."
 
 MEAL_KEYS = ("COLAZIONE", "SPUNTINO", "SPUNTINI", "MERENDA", "PRANZO", "CENA", "CONDIMENTI")
 
@@ -222,6 +221,7 @@ def parse_list_page(lines, page_width):
                     item["qty"] = q.group(1)
                     if q.group(2):
                         item["right"].append(q.group(2))
+                else:
                     item = {"name": name, "qty": q.group(1), "right": [], "x0": left[0]["x0"],
                             "standalone": False}
                     if q.group(2):
@@ -459,7 +459,7 @@ def render_item_li(it):
     return s + "</li>"
 
 
-def render_list(lst, num, free_text, free_warn):
+def render_list(lst, num):
     days = lst["days"]
     sections = lst["sections"]
     out = [f'<div id="lista{num}" class="tab-content{"" if num == FIRST_LIST[0] else " hidden"} space-y-3">']
@@ -475,7 +475,7 @@ def render_list(lst, num, free_text, free_warn):
 
     idx_pranzo = next((i for i, s in enumerate(sections) if s["title"].startswith("PRANZO")), None)
     n_spunt = sum(1 for s in sections if s["title"].startswith(("SPUNTINO", "SPUNTINI", "MERENDA")))
-    day_badge = " / ".join(DAY_ABBR.get(d, d).upper() for d in days)
+    day_badge = days[0].upper() if len(days) == 1 else " / ".join(DAY_ABBR.get(d, d).upper() for d in days)
 
     for i, s in enumerate(sections):
         title = s["title"].upper()
@@ -492,8 +492,6 @@ def render_list(lst, num, free_text, free_warn):
                 '<div class="flex items-center justify-between text-purple-900 font-bold mb-1">'
                 f'<span class="flex items-center gap-2"><i class="fa-solid fa-star text-purple-600"></i> {esc(title)}: PASTO LIBERO</span>'
                 f'<span class="bg-purple-200 text-purple-800 text-[10px] px-2 py-0.5 rounded-full font-bold">{esc(badge)}</span></div>'
-                + (f'<p class="text-xs text-purple-800 mt-2">{esc(free_text)}</p>' if free_text else "")
-                + (f'<p class="text-xs font-bold text-purple-900 mt-1">⚠️ {esc(free_warn)}</p>' if free_warn else "")
                 + "</div>"
             )
             continue
@@ -556,80 +554,55 @@ def render_list(lst, num, free_text, free_warn):
     return "\n".join(out)
 
 
-def render_guide(cards, integrazione, red_title, red_text):
-    out = ['<div id="regole" class="tab-content hidden space-y-4">']
-    out.append(
-        '<div class="relative"><i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-gray-400 text-xs"></i>'
-        '<input type="text" id="foodSearch" onkeyup="searchFoods()" placeholder="Cerca un alimento (es. carote, zucchine)..." '
-        'class="w-full bg-white pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-xs focus:outline-none '
-        'focus:ring-2 focus:ring-emerald-500 shadow-sm"></div>'
-    )
-    if integrazione:
-        lis = "".join(f"<li>{esc(l)}</li>" for l in integrazione)
-        out.append(
-            '<div class="bg-blue-50 p-4 rounded-2xl border border-blue-100 text-xs text-blue-900 space-y-1.5">'
-            '<p class="font-bold text-blue-950 flex items-center gap-1.5"><i class="fa-solid fa-pills text-blue-600"></i> INTEGRAZIONE CONSIGLIATA</p>'
-            f'<ul class="list-disc pl-4 space-y-1 text-gray-700">{lis}</ul></div>'
-        )
-
-    box = {
-        "plain": ("", "bg-gray-50", "border-gray-100"),
-        "pos": ("✅", "bg-emerald-50/50", "border-emerald-100/50"),
-        "neg": ("❌", "bg-red-50/50", "border-red-100/50"),
-    }
-    label_color = {"plain": "text-gray-700", "pos": "text-emerald-700", "neg": "text-red-600"}
-
-    for c in cards:
-        blocks = []
-        for b in c["blocks"]:
-            if red_text and c["title"] == "Indicazioni" and b["kind"] == "neg" and norm_label(b["label"]).startswith("EVITARE"):
-                continue
-            if not b["items"]:
-                continue
-            em, bg, bd = box[b["kind"]]
-            parts, i = [], 0
-            while i < len(b["items"]):
-                if b["items"][i][0]:
-                    j = i
-                    lis = []
-                    while j < len(b["items"]) and b["items"][j][0]:
-                        lis.append(f"<li>{esc(b['items'][j][1])}</li>")
-                        j += 1
-                    parts.append(f'<ul class="list-disc pl-4 space-y-1">{"".join(lis)}</ul>')
-                    i = j
-                else:
-                    parts.append(f"<p>{esc(b['items'][i][1])}</p>")
-                    i += 1
-            label = ""
-            if b["label"]:
-                label = (f'<span class="text-[11px] font-bold {label_color[b["kind"]]} uppercase tracking-wider block mb-1">'
-                         f"{em} {esc(b['label'])}</span>")
-            blocks.append(
-                f"<div>{label}"
-                f'<div class="text-xs text-gray-600 leading-relaxed {bg} p-2.5 rounded-xl border {bd} food-item space-y-1.5">'
-                f'{"".join(parts)}</div></div>'
-            )
-        if not blocks:
-            continue
-        title = re.sub(r"°(?=\S)", "° ", c["title"]).upper()
-        out.append(
-            f'<div class="{CARD} space-y-3 guide-card">'
-            '<h3 class="font-bold text-xs text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-2">'
-            f"{card_emoji(c['title'])} {esc(title)}</h3>" + "".join(blocks) + "</div>"
-        )
-
-    if red_text:
-        out.append(
-            '<div class="bg-red-500 text-white p-4 rounded-2xl shadow-md text-xs space-y-2">'
-            '<p class="font-bold text-sm flex items-center gap-1.5"><i class="fa-solid fa-triangle-exclamation"></i> '
-            f"{esc(red_title)}</p>"
-            f'<p class="leading-relaxed opacity-95">{esc(red_text)}</p></div>'
-        )
-    out.append("</div>")
-    return "\n".join(out)
-
-
 FIRST_LIST = [1]
+TITOLO_FISSO = "Piano Alimentare Mobile"
+
+# CSS equivalente alle classi Tailwind usate dal modello: la pagina non dipende da CDN per lo stile.
+CSS = """
+*,::before,::after{box-sizing:border-box;border:0 solid #e5e7eb}
+html{line-height:1.5;-webkit-text-size-adjust:100%;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
+body{margin:0;line-height:inherit;background:#f3f4f6;color:#1f2937;padding-bottom:3rem;-webkit-tap-highlight-color:transparent}
+h1,p,ul{margin:0}ul{list-style:none;padding:0}b{font-weight:700}
+button{font-family:inherit;font-size:100%;line-height:inherit;color:inherit;background:transparent;border:0;padding:0;cursor:pointer}
+i{font-style:normal}
+.no-scrollbar::-webkit-scrollbar{display:none}.no-scrollbar{-ms-overflow-style:none;scrollbar-width:none}
+.hidden{display:none}.block{display:block}.flex{display:flex}
+.sticky{position:sticky}.top-0{top:0}.z-50{z-index:50}
+.items-center{align-items:center}.justify-between{justify-content:space-between}
+.gap-1\\.5{gap:.375rem}.gap-2{gap:.5rem}
+.mx-auto{margin-left:auto;margin-right:auto}.max-w-md{max-width:28rem}
+.overflow-x-auto{overflow-x:auto}.whitespace-nowrap{white-space:nowrap}
+.mb-1{margin-bottom:.25rem}.mb-2{margin-bottom:.5rem}.mb-4{margin-bottom:1rem}
+.mt-0\\.5{margin-top:.125rem}.mt-1{margin-top:.25rem}.mt-2{margin-top:.5rem}.mt-3{margin-top:.75rem}
+.p-2{padding:.5rem}.p-2\\.5{padding:.625rem}.p-3\\.5{padding:.875rem}.p-4{padding:1rem}.p-5{padding:1.25rem}
+.px-2{padding-left:.5rem;padding-right:.5rem}.px-3{padding-left:.75rem;padding-right:.75rem}.px-4{padding-left:1rem;padding-right:1rem}
+.py-0\\.5{padding-top:.125rem;padding-bottom:.125rem}.py-1{padding-top:.25rem;padding-bottom:.25rem}.py-2\\.5{padding-top:.625rem;padding-bottom:.625rem}
+.pb-1{padding-bottom:.25rem}.pb-2{padding-bottom:.5rem}
+.space-y-2>:not([hidden])~:not([hidden]){margin-top:.5rem}
+.space-y-3>:not([hidden])~:not([hidden]){margin-top:.75rem}
+.rounded{border-radius:.25rem}.rounded-lg{border-radius:.5rem}.rounded-xl{border-radius:.75rem}
+.rounded-2xl{border-radius:1rem}.rounded-full{border-radius:9999px}
+.rounded-b-3xl{border-bottom-left-radius:1.5rem;border-bottom-right-radius:1.5rem}
+.border{border-width:1px}.border-b{border-bottom-width:1px}
+.shadow-sm{box-shadow:0 1px 2px 0 rgba(0,0,0,.05)}
+.shadow-lg{box-shadow:0 10px 15px -3px rgba(0,0,0,.1),0 4px 6px -4px rgba(0,0,0,.1)}
+.text-xs{font-size:.75rem;line-height:1rem}.text-xl{font-size:1.25rem;line-height:1.75rem}
+.text-\\[10px\\]{font-size:10px}.text-\\[11px\\]{font-size:11px}
+.font-medium{font-weight:500}.font-semibold{font-weight:600}.font-bold{font-weight:700}
+.uppercase{text-transform:uppercase}
+.transition-all{transition:all .15s cubic-bezier(.4,0,.2,1)}
+.backdrop-blur-sm{-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+.text-white{color:#fff}.text-gray-500{color:#6b7280}.text-gray-600{color:#4b5563}.text-gray-700{color:#374151}
+.bg-white{background:#fff}.bg-gray-50{background:#f9fafb}.border-gray-100{border-color:#f3f4f6}
+.bg-emerald-50{background:#ecfdf5}.bg-emerald-600{background:#059669}.bg-emerald-700{background:#047857}
+.bg-emerald-700\\/50{background:rgba(4,120,87,.5)}
+.text-emerald-50{color:#ecfdf5}.text-emerald-100{color:#d1fae5}.text-emerald-600{color:#059669}.text-emerald-900{color:#064e3b}
+.border-emerald-100{border-color:#d1fae5}
+.bg-amber-50{background:#fffbeb}.bg-amber-200{background:#fde68a}.border-amber-200{border-color:#fde68a}
+.text-amber-800{color:#92400e}.text-amber-900{color:#78350f}
+.bg-purple-50{background:#faf5ff}.bg-purple-200{background:#e9d5ff}.border-purple-200{border-color:#e9d5ff}
+.text-purple-600{color:#9333ea}.text-purple-800{color:#6b21a8}.text-purple-900{color:#581c87}
+"""
 
 HTML_HEAD = """<!DOCTYPE html>
 <html lang="it">
@@ -637,16 +610,15 @@ HTML_HEAD = """<!DOCTYPE html>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
-    <title>{title}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="theme-color" content="#059669">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Piano Alimentare">
+    <title>__TITLE__</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        .no-scrollbar::-webkit-scrollbar {{ display: none; }}
-        .no-scrollbar {{ -ms-overflow-style: none; scrollbar-width: none; }}
-        body {{ -webkit-tap-highlight-color: transparent; }}
-    </style>
+    <style>__CSS__</style>
 </head>
-<body class="bg-gray-100 text-gray-800 font-sans pb-12">
+<body>
 """
 
 HTML_SCRIPT = """
@@ -662,19 +634,6 @@ HTML_SCRIPT = """
             activeBtn.classList.remove('bg-white', 'text-gray-600');
             activeBtn.classList.add('bg-emerald-600', 'text-white');
             window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-
-        function searchFoods() {
-            const input = document.getElementById('foodSearch').value.toLowerCase();
-            document.querySelectorAll('.food-item').forEach(item => {
-                const hit = item.textContent.toLowerCase().includes(input);
-                item.parentElement.style.display = hit ? "block" : "none";
-            });
-            document.querySelectorAll('.guide-card').forEach(card => {
-                const visible = Array.from(card.querySelectorAll('.food-item'))
-                    .some(i => i.parentElement.style.display !== "none");
-                card.style.display = (input === "" || visible) ? "block" : "none";
-            });
         }
     </script>
 </body>
@@ -695,21 +654,10 @@ def build_html(plan, opts):
     if not lists:
         raise ValueError("Nessuna lista trovata nei PDF.")
     FIRST_LIST[0] = next(iter(lists))
-    guide_cards = plan["cards"] if opts.get("mostra_guida", True) else []
-    integrazione = [l.strip() for l in (opts.get("integrazione") or "").splitlines() if l.strip()]
-    red_text = (opts.get("red_text") or "").strip()
-    has_guide = bool(guide_cards or integrazione or red_text)
-
-    titolo = opts.get("titolo") or "Piano Alimentare"
     paziente = opts.get("paziente", "")
-    out = [HTML_HEAD.format(title=esc(f"{titolo} - {paziente}" if paziente else titolo))]
+    head = HTML_HEAD.replace("__TITLE__", esc(TITOLO_FISSO)).replace("__CSS__", CSS)
+    out = [head]
 
-    # Header
-    badge = ""
-    if opts.get("obiettivo"):
-        badge = f"Obiettivo: {opts['obiettivo']}"
-    elif opts.get("badge"):
-        badge = opts["badge"]
     info = []
     if paziente:
         info.append(("Paziente", paziente))
@@ -723,10 +671,11 @@ def build_html(plan, opts):
     out.append(
         '    <header class="bg-emerald-600 text-white p-5 rounded-b-3xl shadow-lg sticky top-0 z-50">\n'
         '        <div class="flex justify-between items-center mb-2">\n            <div>\n'
-        f'                <h1 class="text-xl font-bold">{esc(titolo)}</h1>\n'
+        f'                <h1 class="text-xl font-bold">{esc(TITOLO_FISSO)}</h1>\n'
         f'                <p class="text-xs text-emerald-100">{esc(opts.get("professionista", ""))}</p>\n'
         "            </div>\n"
-        + (f'            <div class="bg-emerald-700 px-3 py-1 rounded-full text-xs font-semibold">{esc(badge)}</div>\n' if badge else "")
+        + (f'            <div class="bg-emerald-700 px-3 py-1 rounded-full text-xs font-semibold">Obiettivo: {esc(opts["obiettivo"])}</div>\n'
+           if opts.get("obiettivo") else "")
         + "        </div>\n"
         + (
             '        <div class="flex justify-between text-xs bg-emerald-700/50 p-2.5 rounded-xl mt-3 text-emerald-50 backdrop-blur-sm">'
@@ -736,47 +685,19 @@ def build_html(plan, opts):
         )
         + "    </header>\n"
     )
+    out.append('    <main style="padding:1rem;max-width:28rem;margin:0 auto">\n')
 
-    out.append('    <main class="p-4 max-w-md mx-auto">\n')
-
-    # Banner info rapide
-    banner = []
-    if opts.get("acqua"):
-        banner.append(
-            '<div class="flex items-center gap-2"><i class="fa-solid fa-droplet text-blue-500 text-base"></i>'
-            f"<span><b>Acqua:</b> {esc(opts['acqua'])}</span></div>"
-        )
-    if opts.get("controllo"):
-        banner.append(
-            '<div class="flex items-center gap-2"><i class="fa-solid fa-clock text-amber-500 text-base"></i>'
-            f"<span><b>Controllo:</b> {esc(opts['controllo'])}</span></div>"
-        )
-    if banner:
-        out.append(
-            '<div class="bg-white p-3.5 rounded-2xl shadow-sm border border-gray-100 mb-4 flex items-center '
-            'justify-between text-xs text-gray-600 gap-3">' + "".join(banner) + "</div>\n"
-        )
-
-    # Tab (scorrevoli orizzontalmente)
     tabs = []
     for n, lst in lists.items():
         active = "bg-emerald-600 text-white" if n == FIRST_LIST[0] else "bg-white text-gray-600"
         tabs.append(
             f'<button onclick="showTab(\'lista{n}\')" id="tab-lista{n}" class="tab-btn px-4 py-2.5 {active} '
-            f'rounded-xl text-xs font-bold shadow-sm whitespace-nowrap transition-all">{esc(tab_label(n, lst["days"]))}</button>'
-        )
-    if has_guide:
-        tabs.append(
-            '<button onclick="showTab(\'regole\')" id="tab-regole" class="tab-btn px-4 py-2.5 bg-white text-gray-600 '
-            'rounded-xl text-xs font-bold shadow-sm whitespace-nowrap transition-all">💡 Guida & Cibi</button>'
+            f'rounded-xl text-xs font-bold shadow-sm whitespace-nowrap transition-all" style="flex:none">{esc(tab_label(n, lst["days"]))}</button>'
         )
     out.append('<div class="flex gap-2 overflow-x-auto no-scrollbar mb-4 py-1">\n' + "\n".join(tabs) + "\n</div>\n")
 
     for n, lst in lists.items():
-        out.append(render_list(lst, n, opts.get("free_text", ""), opts.get("free_warn", "")))
-    if has_guide:
-        out.append(render_guide(guide_cards, integrazione, opts.get("red_title", "DA EVITARE"), red_text))
-
+        out.append(render_list(lst, n))
     out.append("    </main>\n")
     out.append(HTML_SCRIPT)
     return "\n".join(out)
@@ -809,12 +730,49 @@ def publish_to_github(html, slug, cfg):
 # ----------------------------------------------------------------------------
 # INTERFACCIA STREAMLIT
 # ----------------------------------------------------------------------------
+def share_button(html, filename, text):
+    """Pulsante che apre il menu di condivisione del telefono (WhatsApp) con il file allegato."""
+    import json
+    import streamlit.components.v1 as components
+
+    b64 = base64.b64encode(html.encode("utf-8")).decode()
+    components.html(
+        f"""
+<button id="s" style="width:100%;padding:14px;border:0;border-radius:12px;background:#059669;color:#fff;
+font:600 16px system-ui,sans-serif;cursor:pointer">📲 Invia al paziente (WhatsApp)</button>
+<p id="m" style="font:13px system-ui,sans-serif;color:#555;margin:8px 2px"></p>
+<script>
+const b64 = "{b64}";
+const name = {json.dumps(filename)};
+const msg = {json.dumps(text)};
+function mk() {{
+  const bin = atob(b64), u8 = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  return new File([u8], name, {{type: "text/html"}});
+}}
+document.getElementById("s").onclick = async () => {{
+  const f = mk(), m = document.getElementById("m");
+  try {{
+    if (navigator.canShare && navigator.canShare({{files: [f]}})) {{
+      await navigator.share({{files: [f], text: msg}});
+      return;
+    }}
+  }} catch (e) {{ if (e.name === "AbortError") return; }}
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(f); a.download = name; document.body.appendChild(a); a.click();
+  m.textContent = "La condivisione diretta non è disponibile su questo dispositivo: ho scaricato il file. Invialo da WhatsApp (graffetta → Documento).";
+}};
+</script>""",
+        height=120,
+    )
+
+
 def main():
     import streamlit as st
     import streamlit.components.v1 as components
 
     st.set_page_config(page_title="Generatore piano alimentare", page_icon="🥗", layout="wide")
-    st.title("🥗 Generatore web app piano alimentare")
+    st.title("🥗 Generatore piano alimentare mobile")
     st.caption(
         "Carica uno o più PDF (piano completo, modifiche dieta…). Se carichi più file, le liste con lo stesso "
         "numero vengono sostituite da quelle del file caricato per ultimo."
@@ -839,35 +797,14 @@ def main():
         return
 
     left, right = st.columns([1, 1], gap="large")
-
     with left:
-        st.subheader("Dati e intestazione")
-        titolo = st.text_input("Titolo", f"Piano Alimentare{' ' + meta['kcal'] + ' Kcal' if meta.get('kcal') else ''}", key=f"t{sig}")
+        st.subheader("Intestazione")
         prof = st.text_input("Professionista", meta.get("professionista") or DEFAULT_PROFESSIONISTA, key=f"pr{sig}")
         paziente = st.text_input("Paziente", meta.get("paziente", ""), key=f"pz{sig}")
         c1, c2, c3 = st.columns(3)
         peso = c1.text_input("Peso", meta.get("peso", ""), key=f"pe{sig}")
         bmi = c2.text_input("BMI", meta.get("bmi", ""), key=f"b{sig}")
         obiettivo = c3.text_input("Obiettivo", meta.get("obiettivo", ""), key=f"o{sig}")
-        c4, c5 = st.columns(2)
-        acqua = c4.text_input("Acqua", meta.get("acqua", ""), key=f"a{sig}")
-        controllo = c5.text_input("Prossimo controllo", meta.get("controllo", ""), key=f"c{sig}")
-        badge = st.text_input("Badge in alto (se manca l'obiettivo)", meta.get("sottotitolo", ""), key=f"bd{sig}")
-
-        st.subheader("Guida & note")
-        mostra_guida = st.checkbox("Mostra tab 'Guida & Cibi'", True, key=f"mg{sig}")
-        evitare_default = ""
-        for card in plan["cards"]:
-            if card["title"] == "Indicazioni":
-                for b in card["blocks"]:
-                    if b["kind"] == "neg" and norm_label(b["label"]).startswith("EVITARE"):
-                        evitare_default = "; ".join(t for _, t in b["items"])
-                        break
-        red_title = st.text_input("Titolo box rosso", "DA EVITARE", key=f"rt{sig}")
-        red_text = st.text_area("Box rosso (vuoto = nascosto)", evitare_default, key=f"rx{sig}", height=90)
-        integrazione = st.text_area("Integrazione consigliata (una voce per riga, opzionale)", "", key=f"i{sig}", height=90)
-        free_text = st.text_input("Testo del pasto libero", DEFAULT_PASTO_LIBERO, key=f"ft{sig}")
-        free_warn = st.text_input("Avviso nel pasto libero (opzionale)", "", key=f"fw{sig}")
 
         with st.expander("Liste estratte (controllo)"):
             for n, lst in sorted(plan["lists"].items()):
@@ -876,10 +813,8 @@ def main():
                     st.markdown(f"- {s['title']}: {len(s['items'])} voci")
 
     opts = dict(
-        titolo=titolo, professionista=prof, paziente=paziente, peso=peso, bmi=bmi, obiettivo=obiettivo,
-        acqua=acqua, controllo=controllo, badge=badge, data=meta.get("data", ""),
-        mostra_guida=mostra_guida, red_title=red_title, red_text=red_text, integrazione=integrazione,
-        free_text=free_text, free_warn=free_warn,
+        professionista=prof, paziente=paziente, peso=peso, bmi=bmi, obiettivo=obiettivo,
+        data=meta.get("data", ""),
     )
     try:
         html = build_html(plan, opts)
@@ -893,12 +828,15 @@ def main():
 
     st.divider()
     slug = re.sub(r"[^a-z0-9]+", "-", strip_accents(paziente.lower())).strip("-") or "piano"
-    st.download_button("⬇️ Scarica HTML", html.encode("utf-8"), file_name=f"piano-{slug}.html", mime="text/html")
+    filename = f"piano-alimentare-{slug}.html"
 
     st.subheader("Invio al paziente")
+    share_button(html, filename, "Ecco il tuo piano alimentare. Aprilo dal file allegato.")
+    st.download_button("⬇️ Scarica il file", html.encode("utf-8"), file_name=filename, mime="text/html")
     st.caption(
-        "Su WhatsApp il file HTML non si apre bene (soprattutto su iPhone): meglio inviare un link. "
-        "Pubblica la pagina (es. GitHub Pages) e condividi l'indirizzo."
+        "Il paziente apre il file da WhatsApp e lo vede come un'app. Per tenerlo sul telefono può salvarlo "
+        "(tenendo premuto sul file → Salva/Scarica). Per avere l'icona sulla home serve invece un link: "
+        "vedi la pubblicazione qui sotto, poi dal browser ⋮ → «Aggiungi a schermata Home»."
     )
 
     cfg = {}
@@ -906,33 +844,25 @@ def main():
         cfg = dict(st.secrets)
     except Exception:  # noqa: BLE001
         pass
-    can_publish = all(k in cfg for k in ("GITHUB_TOKEN", "GITHUB_REPO", "GITHUB_PAGES_BASE"))
-
-    if can_publish:
-        st.warning(
-            "⚠️ Dati sanitari: se il repository è pubblico, chiunque abbia il link (o veda il repo) può leggere il piano. "
-            "Usa un repository dedicato, valuta di omettere il cognome e cancella i file quando non servono."
-        )
-        phone = st.text_input("Numero WhatsApp del paziente (formato internazionale, es. 393331234567)", "")
-        if st.button("🚀 Pubblica e genera link"):
-            try:
-                url = publish_to_github(html, slug, cfg)
-                st.session_state[f"url{sig}"] = url
-            except Exception as e:  # noqa: BLE001
-                st.error(f"Pubblicazione non riuscita: {e}")
-        if st.session_state.get(f"url{sig}"):
-            url = st.session_state[f"url{sig}"]
-            st.success(f"Pubblicato (online entro circa 1 minuto): {url}")
-            msg = f"Ciao! Ecco il tuo piano alimentare aggiornato: {url}"
-            digits = re.sub(r"\D", "", phone)
-            wa = f"https://wa.me/{digits}?text={quote(msg)}" if digits else f"https://wa.me/?text={quote(msg)}"
-            st.markdown(f"[📲 Apri WhatsApp con il messaggio pronto]({wa})")
-    else:
-        st.info(
-            "Per pubblicare con un clic aggiungi in `.streamlit/secrets.toml` (o nei Secrets di Streamlit Cloud): "
-            "GITHUB_TOKEN, GITHUB_REPO (utente/repo), GITHUB_PAGES_BASE (https://utente.github.io/repo) e, "
-            "facoltativi, GITHUB_BRANCH e GITHUB_FOLDER. In alternativa scarica l'HTML e caricalo dove preferisci."
-        )
+    if all(k in cfg for k in ("GITHUB_TOKEN", "GITHUB_REPO", "GITHUB_PAGES_BASE")):
+        with st.expander("Pubblica come link (opzionale)"):
+            st.warning(
+                "⚠️ Dati sanitari: se il repository è pubblico, chiunque abbia il link (o veda il repo) può leggere il piano. "
+                "Usa un repository dedicato e cancella i file quando non servono."
+            )
+            phone = st.text_input("Numero WhatsApp del paziente (formato internazionale, es. 393331234567)", "")
+            if st.button("🚀 Pubblica e genera link"):
+                try:
+                    st.session_state[f"url{sig}"] = publish_to_github(html, slug, cfg)
+                except Exception as e:  # noqa: BLE001
+                    st.error(f"Pubblicazione non riuscita: {e}")
+            if st.session_state.get(f"url{sig}"):
+                url = st.session_state[f"url{sig}"]
+                st.success(f"Pubblicato (online entro circa 1 minuto): {url}")
+                msg = f"Ecco il tuo piano alimentare: {url}"
+                digits = re.sub(r"\D", "", phone)
+                wa = f"https://wa.me/{digits}?text={quote(msg)}" if digits else f"https://wa.me/?text={quote(msg)}"
+                st.markdown(f"[📲 Apri WhatsApp con il messaggio pronto]({wa})")
 
 
 if __name__ == "__main__":
