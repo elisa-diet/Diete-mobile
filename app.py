@@ -17,7 +17,7 @@ st.markdown("""
     .allowed-list { color: #1b5e20; list-style-type: '✅ '; padding-left: 20px;}
     .forbidden-list { color: #b71c1c; list-style-type: '❌ '; padding-left: 20px;}
 </style>
-""", unsafe_allow_index=True)
+""", unsafe_allow_html=True)
 
 def parse_diet_pdf(file):
     pdf_reader = PyPDF2.PdfReader(file)
@@ -76,13 +76,13 @@ def parse_diet_pdf(file):
     data['vietati'] = vietati.group(1).strip() if vietati else ""
     return data
 
-st.markdown('<div class="header-card"><h1>Piano Alimentare VLCKD</h1><p>Carica il PDF per generare la dieta digitale interattiva</p></div>', unsafe_allow_index=True)
+st.markdown('<div class="header-card"><h1>Piano Alimentare VLCKD</h1><p>Carica il PDF per generare la dieta digitale interattiva</p></div>', unsafe_allow_html=True)
 uploaded_file = st.file_uploader("📂 Rilascia o seleziona il file PDF della dieta", type=["pdf"])
 
 if uploaded_file is not None:
     try:
         pazio = parse_diet_pdf(uploaded_file)
-        st.markdown(f"<p style='text-align:center; color:#666; font-style: italic;'>{pazio.get('medico', 'Biologa Nutrizionista')}</p>", unsafe_allow_index=True)
+        st.markdown(f"<p style='text-align:center; color:#666; font-style: italic;'>{pazio.get('medico', 'Biologa Nutrizionista')}</p>", unsafe_allow_html=True)
         st.markdown(f"""
         <div class="patient-info">
             <div style="display: flex; flex-wrap: wrap; justify-content: space-between; row-gap: 10px;">
@@ -97,7 +97,7 @@ if uploaded_file is not None:
                 <div>📅 <b>Prossimo Controllo:</b> {pazio['controllo']}</div>
             </div>
         </div>
-        """, unsafe_allow_index=True)
+        """, unsafe_allow_html=True)
         st.subheader("🗓️ Giorni e Liste Alimentari")
         st.caption("Scorri lateralmente ➡️ per visualizzare tutti i giorni del piano")
         scroll_html = '<div class="horizontal-scroll-container">'
@@ -109,7 +109,7 @@ if uploaded_file is not None:
             card_content += '</div>'
             scroll_html += card_content
         scroll_html += '</div>'
-        st.markdown(scroll_html, unsafe_allow_index=True)
+        st.markdown(scroll_html, unsafe_allow_html=True)
         if pazio.get('integrazione'):
             st.markdown("---")
             st.subheader("💊 Integrazione Consigliata")
@@ -120,15 +120,15 @@ if uploaded_file is not None:
         with tab1:
             col1, col2 = st.columns(2)
             with col1:
-                st.markdown(f'<div class="food-box"><h4 style="color:#1b5e20;">Consentite</h4><div class="allowed-list">{pazio["verdure"]["ok"].replace("- ", "").replace("\n", "<br>")}</div></div>', unsafe_allow_index=True)
+                st.markdown(f'<div class="food-box"><h4 style="color:#1b5e20;">Consentite</h4><div class="allowed-list">{pazio["verdure"]["ok"].replace("- ", "").replace("\n", "<br>")}</div></div>', unsafe_allow_html=True)
             with col2:
-                st.markdown(f'<div class="food-box"><h4 style="color:#b71c1c;">Da Evitare</h4><div class="forbidden-list">{pazio["verdure"]["no"].replace("- ", "").replace("\n", "<br>")}</div></div>', unsafe_allow_index=True)
+                st.markdown(f'<div class="food-box"><h4 style="color:#b71c1c;">Da Evitare</h4><div class="forbidden-list">{pazio["verdure"]["no"].replace("- ", "").replace("\n", "<br>")}</div></div>', unsafe_allow_html=True)
         with tab2:
             col1, col2 = st.columns(2)
             with col1:
-                st.markdown(f'<div class="food-box"><h4 style="color:#1b5e20;">Consentita (100g)</h4><div class="allowed-list">{pazio["frutta"]["ok"].replace("- ", "").replace("\n", "<br>")}</div></div>', unsafe_allow_index=True)
+                st.markdown(f'<div class="food-box"><h4 style="color:#1b5e20;">Consentita (100g)</h4><div class="allowed-list">{pazio["frutta"]["ok"].replace("- ", "").replace("\n", "<br>")}</div></div>', unsafe_allow_html=True)
             with col2:
-                st.markdown(f'<div class="food-box"><h4 style="color:#b71c1c;">Da Evitare</h4><div class="forbidden-list">{pazio["frutta"]["no"].replace("- ", "").replace("\n", "<br>")}</div></div>', unsafe_allow_index=True)
+                st.markdown(f'<div class="food-box"><h4 style="color:#b71c1c;">Da Evitare</h4><div class="forbidden-list">{pazio["frutta"]["no"].replace("- ", "").replace("\n", "<br>")}</div></div>', unsafe_allow_html=True)
         with tab3:
             if pazio.get('vietati'):
                 st.error(f"🚫 **STRETTAMENTE VIETATI:** {pazio['vietati']}")
