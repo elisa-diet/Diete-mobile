@@ -1,14 +1,15 @@
 import streamlit as st, PyPDF2, re, urllib.parse
-st.set_page_config(page_title="Dieta Digitale", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Visualizzatore Dieta Digitale", page_icon="🥗", layout="wide", initial_sidebar_state="collapsed")
 st.markdown("""
 <style>
-    .stApp {background:#f8f9fa;color:#212529;font-family:sans-serif;}
-    .header-card {background:linear-gradient(135deg,#2e7d32,#4caf50);color:white;padding:25px;border-radius:15px;text-align:center;margin-bottom:20px;box-shadow:0 4px 12px rgba(0,0,0,0.1);}
-    .patient-info {background:white;padding:20px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05);margin-bottom:20px;border-left:5px solid #2e7d32;}
-    .horizontal-scroll-container {display:flex !important;flex-direction:row !important;flex-wrap:nowrap !important;overflow-x:auto !important;padding:15px 0 !important;gap:20px !important;-webkit-overflow-scrolling:touch !important;}
-    .day-card {flex:0 0 85% !important;min-width:290px !important;max-width:330px !important;background:white !important;border-radius:12px !important;padding:20px !important;box-shadow:0 4px 10px rgba(0,0,0,0.08) !important;border-top:5px solid #4caf50 !important;display:block !important;}
-    .meal-title {font-weight:bold;color:#2e7d32;margin-top:12px;margin-bottom:4px;font-size:0.95rem;border-bottom:1px dashed #ddd;padding-bottom:2px;}
-    .food-box {background:white;padding:15px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05);}
+    .stApp {background-color:#f8f9fa;color:#212529;font-family:sans-serif;}
+    .header-card {background:linear-gradient(135deg,#2e7d32,#4caf50);color:white;padding:30px;border-radius:15px;box-shadow:0 4px 15px rgba(0,0,0,0.1);margin-bottom:25px;text-align:center;}
+    .patient-info {background-color:white;padding:20px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05);margin-bottom:25px;border-left:5px solid #2e7d32;}
+    .horizontal-scroll-container {display:flex !important;flex-direction:row !important;flex-wrap:nowrap !important;overflow-x:auto !important;padding:15px 5px !important;gap:20px !important;-webkit-overflow-scrolling:touch !important;}
+    .day-card {flex:0 0 85% !important;min-width:300px !important;max-width:340px !important;background:white !important;border-radius:12px !important;padding:20px !important;box-shadow:0 4px 10px rgba(0,0,0,0.08) !important;border-top:5px solid #4caf50 !important;display:block !important;}
+    .meal-title {font-weight:bold;color:#2e7d32;margin-top:15px;margin-bottom:5px;font-size:0.95rem;letter-spacing:0.5px;border-bottom:1px dashed #ddd;padding-bottom:3px;}
+    .food-box {background-color:white;padding:20px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05);margin-bottom:20px;}
+    .main-choice {font-weight:bold;color:#111;display:block;margin-bottom:4px;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -38,7 +39,10 @@ def parse_diet_pdf(file):
             if not nl: continue
             tl = f"Lista {nl.group(1)}"
             gm = re.search(r"([A-ZÈÒÀÙÌa-zèòàùì\s]+(?:\s*[-–]\s*[A-ZÈÒÀÙÌa-zèòàùì\s]+)+)", pt)
-            if gm and any(day in gm.group(1).upper() for day in ["LUNED","MARTED","MERCOLED","GIOVED","VENERD","SABATO","DOMENICA"]): tl += f" ({gm.group(1).strip().replace('\n',' ')})"
+            if gm and any(day in gm.group(1).upper() for day in ["LUNED","MARTED","MERCOLED","GIOVED","VENERD","SABATO","DOMENICA"]):
+                clean_days = gm.group(1).strip().replace('\n', ' ')
+                clean_days = re.sub(r".*(?=LUNED|MARTED|MERCOLED|GIOVED|VENERD|SABATO|DOMENICA)", "", clean_days, flags=re.I)
+                tl += f" ({clean_days})"
             elif "SABATO" in pt.upper() and nl.group(1)=="4": tl += " (SABATO)"
             pasti, pc, cp = {}, None, []
             for l in pt.split('\n'):
@@ -46,7 +50,7 @@ def parse_diet_pdf(file):
                 if not lc: continue
                 if any(p in lc.upper() for p in ["COLAZIONE","SPUNTINO","PRANZO","CENA","CONDIMENTI"]):
                     if pc: pasti[pc] = "\n".join(cp)
-                    pc = "SPUNTINO POMERIGGIO" if lc.upper()=="SPUNTINO" and "SPUNTINO MATTINA" in pasti else "SPUNTINO MATTINA" if lc.upper()=="SPUNTINO" else lc
+                    pc = "🟢 SPUNTINO POMERIGGIO" if lc.upper()=="SPUNTINO" and "🟢 SPUNTINO MATTINA" in pasti else "🟢 SPUNTINO MATTINA" if lc.upper()=="SPUNTINO" else f"🟢 {lc}"
                     cp = []
                 elif pc and not any(k in lc.upper() for k in ["STUDIO VIA CASSIA","TEL STUDIO","EMAIL:","DOTT.SSA","LISTA","QUESTO REGIME"]): cp.append(lc)
             if pc: pasti[pc] = "\n".join(cp)
@@ -60,41 +64,42 @@ def parse_diet_pdf(file):
     d['integrazione'] = it.group(1).strip() if it else ""
     return d
 
-st.markdown('<div class="header-card"><h1>Piano Alimentare Digitale</h1><p>Genera la dieta digitale e inviala direttamente al paziente</p></div>', unsafe_allow_html=True)
+st.markdown('<div class="header-card"><h1>🥗 Piano Alimentare Digitale</h1><p>Genera la dieta digitale e inviala direttamente al paziente</p></div>', unsafe_allow_html=True)
 file = st.file_uploader("📂 Carica il file PDF della dieta", type=["pdf"])
 
 if file is not None:
     try:
         p = parse_diet_pdf(file)
-        st.markdown(f"<p style='text-align:center;color:#2e7d32;font-size:1.1rem;font-weight:bold;'>Dott.ssa Elisa Vasa — Biologa Nutrizionista</p>", unsafe_allow_html=True)
-        
-        # --- FUNZIONE CONDIVISIONE WHATSAPP ---
-        st.subheader("📲 Invia al Paziente")
+        st.markdown(f"<p style='text-align:center;color:#2e7d32;font-size:1.2rem;font-weight:bold;'>Dott.ssa Elisa Vasa — Biologa Nutrizionista</p>", unsafe_allow_html=True)
+        st.subheader("📲 Invia Link al Paziente")
         num_tel = st.text_input("Inserisci il numero di telefono del paziente (es. 3491234567):", key="whatsapp_num")
         if num_tel:
             messaggio = f"Ciao {p['paziente']}, ecco il link per consultare comodamente il tuo piano alimentare digitale interattivo: https://streamlit.app"
             msg_encoded = urllib.parse.quote(messaggio)
             wa_link = f"https://whatsapp.com{num_tel}&text={msg_encoded}"
-            st.markdown(f'<a href="{wa_link}" target="_blank"><button style="background-color:#25D366;color:white;border:none;padding:10px 20px;border-radius:8px;font-weight:bold;cursor:pointer;">💬 Invia su WhatsApp</button></a>', unsafe_allow_html=True)
-        
+            st.markdown(f'<a href="{wa_link}" target="_blank"><button style="background-color:#25D366;color:white;border:none;padding:12px 24px;border-radius:8px;font-weight:bold;cursor:pointer;">💬 Invia su WhatsApp</button></a>', unsafe_allow_html=True)
         st.markdown("---")
-        st.markdown(f'<div class="patient-info"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;row-gap:10px;"><div>👤 <b>Paziente:</b> <span style="color:#2e7d32;font-weight:bold;">{p["paziente"]}</span></div><div>📋 <b>Tipo:</b> {p["tipo_dieta"]}</div><div>⚖️ <b>Peso:</b> {p["peso"]}</div><div>📊 <b>BMI:</b> {p["bmi"]}</div></div><hr style="margin:10px 0;border:0;border-top:1px solid #eee;"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;font-size:0.95rem;color:#555;"><div>🎯 <b>Obiettivo:</b> {p["obiettivo"]}</div><div>📅 <b>Controllo:</b> {p["controllo"]}</div></div></div>', unsafe_allow_html=True)
-        
+        st.markdown(f'<div class="patient-info"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;row-gap:10px;"><div>👤 <b>Paziente:</b> <span style="color:#2e7d32;font-weight:bold;">{p["paziente"]}</span></div><div>📋 <b>Tipo Piano:</b> {p["tipo_dieta"]}</div><div>⚖️ <b>Peso:</b> {p["peso"]}</div><div>📊 <b>BMI:</b> {p["bmi"]}</div></div><hr style="margin:12px 0;border:0;border-top:1px solid #eee;"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;font-size:0.95rem;color:#555;"><div>🎯 <b>Obiettivo:</b> {p["objective"] if "objective" in p else p["obiettivo"]}</div><div>📅 <b>Prossimo Controllo:</b> {p["controllo"]}</div></div></div>', unsafe_allow_html=True)
         if p['giorni']:
-            st.subheader("🗓️ Menu Giornalieri")
-            st.caption("Scorri lateralmente ➡️")
+            st.subheader("🗓️ Menu Giornalieri e Liste")
+            st.caption("Scorri lateralmente ➡️ per visualizzare le liste complete")
             scroll_html = '<div class="horizontal-scroll-container">'
             for g in p['giorni']:
-                cc = f'<div class="day-card"><h3>{g["titolo"]}</h3>'
+                cc = f'<div class="day-card"><h3>🗓️ {g["titolo"]}</h3>'
                 for pasto, desc in g['pasti'].items():
-                    dh = desc.replace('\n', '<br>').replace('Oppure:', '<br><strong style="color:#e65100;">Oppure:</strong>')
-                    cc += f'<div class="meal-title">{pasto}</div><div style="font-size:0.88rem;color:#333;line-height:1.4;">{dh}</div>'
+                    cc += f'<div class="meal-title">{pasto}</div><div style="font-size:0.88rem;color:#333;line-height:1.4;">'
+                    righe = desc.split('\n')
+                    if righe and righe[0].strip():
+                        cc += f'<span class="main-choice">👉 {righe[0].strip()}</span>'
+                        restante = "\n".join(righe[1:])
+                        dh = restante.replace('\n', '<br>').replace('Oppure:', '<br><strong style="color:#e65100;">Oppure:</strong>')
+                        cc += f'{dh}'
+                    cc += '</div>'
                 cc += '</div>'; scroll_html += cc
             st.markdown(scroll_html+'</div>', unsafe_allow_html=True)
-            
-        if p['integrazione']: st.markdown("---"); st.subheader("💊 Integrazione"); st.info(p['integrazione'])
+        if p['integrazione']: st.markdown("---"); st.subheader("💊 Integrazione Consigliata"); st.info(p['integrazione'])
         if p['v_ok'] or p['f_ok']:
-            st.markdown("---"); st.subheader("💡 Tabelle Guida Alimenti")
+            st.markdown("---"); st.subheader("💡 Tabelle Guica Alimenti (VLCKD)")
             t1, t2 = st.tabs(["🥬 Verdure", "🍎 Frutta"])
             with t1:
                 c1, c2 = st.columns(2)
@@ -105,4 +110,4 @@ if file is not None:
                 c1.markdown(f'<div class="food-box"><h4 style="color:#1b5e20;">Consentite</h4><p style="font-size:0.9rem;">{p["f_ok"]}</p></div>', unsafe_allow_html=True)
                 c2.markdown(f'<div class="food-box"><h4 style="color:#b71c1c;">Da Evitare</h4><p style="font-size:0.9rem;">{p["f_no"]}</p></div>', unsafe_allow_html=True)
     except Exception as e: st.error(f"Errore: {e}")
-else: st.info("👋 Trascina qui il PDF della dieta per vederla all'istante.")
+else: st.info("👋 In attesa del file. Trascina qui sopra il PDF della dieta per vederla all'istante.")
