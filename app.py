@@ -22,7 +22,7 @@ import pdfplumber
 # ----------------------------------------------------------------------------
 # CONFIGURAZIONE
 # ----------------------------------------------------------------------------
-PARSER_VERSION = "2026-10-14a"
+PARSER_VERSION = "2026-10-15a"
 DEFAULT_PROFESSIONISTA = "Dott.ssa Elisa Vasa • Biologa Nutrizionista"
 
 MEAL_KEYS = ("COLAZIONE", "SPUNTINO", "SPUNTINI", "MERENDA", "PRANZO", "CENA", "COCCOLA", "CONDIMENTI")
@@ -44,6 +44,23 @@ QTY_RE = re.compile(
     r"(?:\s*(\(.*\)))?\s*$",
     re.I,
 )
+NEG_KEYS = ("EVITARE", "VIETAT", "NON CONSENTIT", "NON AMMESS", "DA ELIMINARE")
+NEG_LABEL_RE = re.compile(
+    r"^(?:([A-Za-zÀ-ùÀ-Ù' ]{2,40}?)\s+)?(da evitare|evitare|vietat[eoi]|non consentit[eoi])\s*:\s*(.*)$", re.I
+)
+
+
+def is_neg_label(n):
+    return n.startswith(NEG_PREFIX) or any(k in n for k in NEG_KEYS)
+
+
+def neg_hint(label):
+    """'VERDURE DA EVITARE' -> 'VERDURE'; 'EVITARE' -> ''."""
+    n = norm_label(label)
+    n = re.sub(r"\s*(DA\s+)?(EVITARE|VIETAT[EOI]|NON CONSENTIT[EOI])\s*$", "", n).strip()
+    return "" if n in ("", "DA") else n
+
+
 LISTA_RE = re.compile(r"\bLISTA\s*(\d+)\b", re.I)
 LABEL_RE = re.compile(r"^([A-ZÀÈÉÌÒÙ0-9][A-ZÀÈÉÌÒÙ0-9°’'\s,\.\-]{1,70}?)\s*:\s*(.*)$")
 
@@ -289,11 +306,18 @@ def parse_blocks(lines, start_title=None):
         t = text.strip()
         if not t or re.match(r"(?i)^raccomandazioni", t):
             continue
+        m2 = NEG_LABEL_RE.match(t) if not LABEL_RE.match(t) else None
+        if m2:
+            b = new_block("EVITARE", "neg")
+            if m2.group(1):
+                b["group"] = m2.group(1).strip().upper()
+            add_text(b, m2.group(3), 999)
+            continue
         m = LABEL_RE.match(t)
         if m:
             label, rest = m.group(1).strip(), m.group(2).strip()
             n = norm_label(label)
-            if n.startswith(NEG_PREFIX):
+            if is_neg_label(n):
                 kind = "neg"
             elif n.startswith(POS_PREFIX):
                 kind = "pos"
@@ -304,6 +328,8 @@ def parse_blocks(lines, start_title=None):
                 b = new_block("", "plain")
             else:
                 b = new_block(label, kind)
+                if kind == "neg" and neg_hint(label):
+                    b["group"] = neg_hint(label)
             add_text(b, rest, 999)
             continue
         b = state["block"] or new_block("", "plain")
@@ -320,7 +346,8 @@ def tag_groups(cards):
         if idx_met is not None and idx_cond is not None and idx_met < i < idx_cond:
             g = cards[idx_met]["title"]  # le righe sui metodi di cottura appartengono a "Metodi di cottura"
         for b in c["blocks"]:
-            b["group"] = g
+            if not b.get("group"):
+                b["group"] = g
 
 
 def evitare_groups(cards):
@@ -330,7 +357,7 @@ def evitare_groups(cards):
         if norm_label(c["title"]) == "INDICAZIONI":
             continue
         for b in c["blocks"]:
-            if b["kind"] != "neg" or not norm_label(b["label"]).startswith("EVITARE") or not b["items"]:
+            if b["kind"] != "neg" or not any(k in norm_label(b["label"]) for k in ("EVITARE", "VIETAT", "NON CONSENTIT")) or not b["items"]:
                 continue
             parts = [t for _, t in b["items"]]
             text = "; ".join(parts) if any(bl for bl, _ in b["items"]) else " ".join(parts)
