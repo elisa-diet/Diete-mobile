@@ -22,7 +22,7 @@ import pdfplumber
 # ----------------------------------------------------------------------------
 # CONFIGURAZIONE
 # ----------------------------------------------------------------------------
-PARSER_VERSION = "2026-10-13b"
+PARSER_VERSION = "2026-10-14a"
 DEFAULT_PROFESSIONISTA = "Dott.ssa Elisa Vasa • Biologa Nutrizionista"
 
 MEAL_KEYS = ("COLAZIONE", "SPUNTINO", "SPUNTINI", "MERENDA", "PRANZO", "CENA", "COCCOLA", "CONDIMENTI")
@@ -311,6 +311,55 @@ def parse_blocks(lines, start_title=None):
     return cards
 
 
+def tag_groups(cards):
+    """Assegna a ogni blocco la categoria a cui appartiene (usata per la pagina EVITARE)."""
+    idx_cond = next((i for i, c in enumerate(cards) if norm_label(c["title"]).startswith("CONDIMENTI")), None)
+    idx_met = next((i for i, c in enumerate(cards) if norm_label(c["title"]).startswith("METODI")), None)
+    for i, c in enumerate(cards):
+        g = re.sub(r"\s+CONSENTIT[EA]$", "", c["title"].strip(), flags=re.I)
+        if idx_met is not None and idx_cond is not None and idx_met < i < idx_cond:
+            g = cards[idx_met]["title"]  # le righe sui metodi di cottura appartengono a "Metodi di cottura"
+        for b in c["blocks"]:
+            b["group"] = g
+
+
+def evitare_groups(cards):
+    """Raccoglie tutte le voci EVITARE del capitolo Raccomandazioni (non quelle delle Indicazioni)."""
+    groups, idx = [], {}
+    for c in cards:
+        if norm_label(c["title"]) == "INDICAZIONI":
+            continue
+        for b in c["blocks"]:
+            if b["kind"] != "neg" or not norm_label(b["label"]).startswith("EVITARE") or not b["items"]:
+                continue
+            parts = [t for _, t in b["items"]]
+            text = "; ".join(parts) if any(bl for bl, _ in b["items"]) else " ".join(parts)
+            text = upper_first(text.strip())
+            g = b.get("group") or c["title"]
+            key = norm_label(g)
+            if key not in idx:
+                idx[key] = len(groups)
+                groups.append((g, []))
+            groups[idx[key]][1].append(text)
+    return groups
+
+
+def render_evitare(groups):
+    out = ['<div id="evitare" class="tab-content hidden space-y-3">']
+    for title, texts in groups:
+        t = re.sub(r"°(?=\S)", "° ", title).upper()
+        body = "".join(f"<p>{esc(x)}</p>" for x in texts)
+        out.append(
+            f'<div class="{CARD} space-y-3">'
+            '<h3 class="font-bold text-xs text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-2" style="margin:0">'
+            f"{card_emoji(title)} {esc(t)}</h3>"
+            '<div class="text-xs text-gray-600 leading-relaxed bg-red-50/50 p-2.5 rounded-xl border border-red-100/50 space-y-3">'
+            f"<span class=\"text-[11px] font-bold text-red-600 uppercase block mb-1\">❌ Evitare</span>{body}</div></div>"
+        )
+    out.append("</div>")
+    return "\n".join(out)
+
+
 def merge_cards(cards):
     out, idx = [], {}
     for c in cards:
@@ -420,7 +469,9 @@ def parse_pdf(data: bytes):
             guide_lines.append(("", 999))
 
     # La cover genera la card "Indicazioni", le altre pagine le card per categoria
-    plan["cards"] = merge_cards(parse_blocks(guide_lines, start_title="Indicazioni"))
+    raw_cards = parse_blocks(guide_lines, start_title="Indicazioni")
+    tag_groups(raw_cards)
+    plan["cards"] = merge_cards(raw_cards)
     return plan
 
 
@@ -487,6 +538,14 @@ def render_list(lst, num):
         title = s["title"].upper()
         items = s["items"]
         if not items:
+            continue
+
+        # Colazione delle liste successive alla prima
+        if title.startswith("COLAZIONE") and FIRST_COL[0] and num != FIRST_LIST[0]:
+            out.append(
+                f'<div class="{CARD}"><div class="{HEAD_C}"><i class="fa-solid fa-mug-hot"></i> COLAZIONE</div>'
+                f'<p class="text-xs text-gray-700">Come colazione lista {FIRST_LIST[0]}</p></div>'
+            )
             continue
 
         # Pasto libero
@@ -567,7 +626,8 @@ def render_list(lst, num):
 
 
 FIRST_LIST = [1]
-TITOLO_FISSO = "Piano Alimentare Mobile"
+TITOLO_FISSO = "Pocket Plan"
+FIRST_COL = [False]
 
 # CSS equivalente alle classi Tailwind usate dal modello: la pagina non dipende da CDN per lo stile.
 CSS = """
@@ -604,6 +664,9 @@ i{font-style:normal}
 .uppercase{text-transform:uppercase}
 .transition-all{transition:all .15s cubic-bezier(.4,0,.2,1)}
 .backdrop-blur-sm{-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+.tabs-bar{position:sticky;top:6rem;z-index:40;background:#f3f4f6;margin:0 -1rem 1rem;padding:.75rem 1rem .25rem}
+.leading-relaxed{line-height:1.625}.text-gray-900{color:#111827}.text-red-600{color:#dc2626}
+.bg-red-50\\/50{background:rgba(254,242,242,.5)}.border-red-100\\/50{border-color:rgba(254,226,226,.5)}
 .text-white{color:#fff}.text-gray-500{color:#6b7280}.text-gray-600{color:#4b5563}.text-gray-700{color:#374151}
 .bg-white{background:#fff}.bg-gray-50{background:#f9fafb}.border-gray-100{border-color:#f3f4f6}
 .bg-emerald-50{background:#ecfdf5}.bg-emerald-600{background:#059669}.bg-emerald-700{background:#047857}
@@ -625,7 +688,7 @@ HTML_HEAD = """<!DOCTYPE html>
     <meta name="theme-color" content="#059669">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="Piano Alimentare">
+    <meta name="apple-mobile-web-app-title" content="Pocket Plan">
     <title>__TITLE__</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>__CSS__</style>
@@ -647,6 +710,15 @@ HTML_SCRIPT = """
             activeBtn.classList.add('bg-emerald-600', 'text-white');
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
+
+        function placeTabs() {
+            const h = document.querySelector('header'), b = document.getElementById('tabsbar');
+            if (h && b) b.style.top = (h.offsetHeight - 1) + 'px';
+        }
+        window.addEventListener('load', placeTabs);
+        window.addEventListener('resize', placeTabs);
+        if (window.ResizeObserver) new ResizeObserver(placeTabs).observe(document.querySelector('header'));
+        placeTabs();
     </script>
 </body>
 </html>
@@ -666,6 +738,8 @@ def build_html(plan, opts):
     if not lists:
         raise ValueError("Nessuna lista trovata nei PDF.")
     FIRST_LIST[0] = next(iter(lists))
+    FIRST_COL[0] = any(s["title"].upper().startswith("COLAZIONE") for s in lists[FIRST_LIST[0]]["sections"])
+    evitare = evitare_groups(plan.get("cards", []))
     paziente = opts.get("paziente", "")
     head = HTML_HEAD.replace("__TITLE__", esc(TITOLO_FISSO)).replace("__CSS__", CSS)
     out = [head]
@@ -706,10 +780,20 @@ def build_html(plan, opts):
             f'<button onclick="showTab(\'lista{n}\')" id="tab-lista{n}" class="tab-btn px-4 py-2.5 {active} '
             f'rounded-xl text-xs font-bold shadow-sm whitespace-nowrap transition-all" style="flex:none">{esc(tab_label(n, lst["days"]))}</button>'
         )
-    out.append('<div class="flex gap-2 overflow-x-auto no-scrollbar mb-4 py-1">\n' + "\n".join(tabs) + "\n</div>\n")
+    if evitare:
+        tabs.append(
+            '<button onclick="showTab(\'evitare\')" id="tab-evitare" class="tab-btn px-4 py-2.5 bg-white text-gray-600 '
+            'rounded-xl text-xs font-bold shadow-sm whitespace-nowrap transition-all" style="flex:none">🚫 Evitare</button>'
+        )
+    out.append(
+        '<div id="tabsbar" class="tabs-bar"><div class="flex gap-2 overflow-x-auto no-scrollbar py-1">\n'
+        + "\n".join(tabs) + "\n</div></div>\n"
+    )
 
     for n, lst in lists.items():
         out.append(render_list(lst, n))
+    if evitare:
+        out.append(render_evitare(evitare))
     out.append("    </main>\n")
     out.append(HTML_SCRIPT)
     return "\n".join(out)
